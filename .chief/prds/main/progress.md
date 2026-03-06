@@ -69,3 +69,15 @@
   - Joiner retries with 3s delay on disconnect; host polls continuously for new answers
   - Stale peers auto-cleaned after 30s of disconnection
 ---
+
+## 2026-03-06 - US-005
+- What was implemented: Home page with room creation using shadcn/ui Card, Label, Input, Button
+- Files changed:
+  - `src/HomePage.tsx` - Created with Card/CardHeader/CardContent wrapper, Label for input, slugify function, localStorage display name prompt
+  - `src/App.tsx` - Added Router component with pushState navigation, handleCreateRoom connecting to session store
+- **Learnings for future iterations:**
+  - HomePage uses browser `prompt()` for display name; US-006 specifies shadcn/ui Dialog for joiners
+  - slugify: lowercase, trim, remove special chars, spaces→hyphens
+  - Router uses `window.location.pathname` + popstate for SPA routing
+  - `connectToSession(slug, displayName)` from store handles both host and joiner roles
+---
