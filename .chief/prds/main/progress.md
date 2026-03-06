@@ -146,3 +146,15 @@
   - Clearing Yjs map entries requires iterating with `forEach` and deleting each key (no `clear()` method on Y.Map)
   - CardDeck automatically resets to unselected state when votes are cleared because it reads `currentVote` from the Yjs votes map
 ---
+
+## 2026-03-06 - US-011
+- What was implemented: SPA routing verification — all criteria already met by prior stories
+- Files verified (no changes needed):
+  - `src/App.tsx` - Router component with `history.pushState`, `popstate` handler, `/` and `/{room-slug}` routing
+  - `src/index.ts` - Dev server with `/*` wildcard route serving index.html for all paths
+  - `vercel.json` - SPA rewrite rule sending non-API routes to `index.html`
+- **Learnings for future iterations:**
+  - SPA routing was implicitly built across US-005 (Router, pushState, popstate) and US-006 (room page rendering)
+  - Dev server uses `"/*": index` wildcard in Bun.serve() routes for SPA fallback
+  - Vercel rewrite order matters: API routes must come before the catch-all SPA rewrite
+---

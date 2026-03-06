@@ -171,7 +171,7 @@
         "Direct URL access to `/{room-slug}` works (loads app, then joins room)"
       ],
       "priority": 11,
-      "passes": false
+      "passes": true
     }
   ]
 }
