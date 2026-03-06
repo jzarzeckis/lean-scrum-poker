@@ -516,6 +516,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
             // Wait for disconnect, then retry
             await new Promise<void>((resolve) => {
+              let resolved = false;
+              const done = () => { if (!resolved) { resolved = true; resolve(); } };
               const checkDisconnect = () => {
                 const state = result.pc.connectionState;
                 if (state === "disconnected" || state === "failed") {
@@ -523,7 +525,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                     "connectionstatechange",
                     checkDisconnect,
                   );
-                  resolve();
+                  done();
                 }
               };
               result.pc.addEventListener(
@@ -531,10 +533,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 checkDisconnect,
               );
               result.dc.then((dc) => {
-                dc.addEventListener("close", () => resolve());
+                dc.addEventListener("close", () => done());
               });
+              // Detect network loss instantly via offline event
+              const offlineHandler = () => done();
+              window.addEventListener("offline", offlineHandler, { once: true });
               // Also resolve if aborted
-              ac.signal.addEventListener("abort", () => resolve());
+              ac.signal.addEventListener("abort", () => {
+                window.removeEventListener("offline", offlineHandler);
+                done();
+              });
             });
 
             if (ac.signal.aborted) return;
@@ -644,6 +652,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }, 10_000);
     return () => clearInterval(interval);
   }, [doc, updatePeersState]);
+
+  // Detect network loss/recovery via browser online/offline events
+  useEffect(() => {
+    const onOffline = () => {
+      // Immediately mark all peers as disconnected for faster UI feedback
+      for (const [pid, entry] of peersRef.current) {
+        if (entry.status !== "disconnected") {
+          entry.status = "disconnected";
+          entry.disconnectedAt = Date.now();
+        }
+      }
+      updatePeersState();
+      // For joiners, transition to "connecting" state
+      if (!isHostRef.current && peersRef.current.has("host")) {
+        setSessionState("connecting");
+      }
+    };
+    const onOnline = () => {
+      // Network recovered — close stale PCs so the retry loop picks up faster
+      for (const entry of peersRef.current.values()) {
+        if (entry.status === "disconnected") {
+          try { entry.pc.close(); } catch {}
+        }
+      }
+    };
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", onOnline);
+    return () => {
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [updatePeersState]);
 
   // Graceful cleanup on tab close / refresh (best-effort via sendBeacon)
   useEffect(() => {
