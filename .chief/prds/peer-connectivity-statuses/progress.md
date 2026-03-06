@@ -99,3 +99,14 @@
   - Closing stale PCs on `online` event helps the retry loop detect disconnection and start a new connection attempt
   - Host doesn't need special recovery — it stays in "hosting" state, continues polling, and joiners reconnect via their retry loops
 ---
+
+## 2026-03-06 - US-009
+- What was implemented: Verified pre-created offer architecture and fixed race condition in host polling loop
+- Files changed:
+  - `src/store.tsx` — Wrapped `acceptAnswer` in `runHostPolling` with try/catch so a failed answer doesn't prevent creating the next offer. On failure, the peer is marked disconnected and the next offer is always created.
+- **Learnings for future iterations:**
+  - The pre-create offer architecture was already fully implemented: host creates offer on session start, replaces after each handshake, joiners get offer instantly from `join-session`
+  - Only the host polls (for answers via `poll-answer`), joiners never poll
+  - Race condition: if `acceptAnswer` throws in `runHostPolling`, the outer catch prevented `createAndPostOffer` from running, leaving the host stuck with no offer for future joiners
+  - Signaling server (`src/signaling.ts`) returns "Session busy" if no offer is available — joiner retry loop handles this but with a 3s delay
+---
