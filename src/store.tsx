@@ -186,24 +186,42 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [doc]);
 
   // Track participant keys for connected peers (host only)
+  // Also refresh joiner status map when participants change
   useEffect(() => {
     const participants = doc.getMap("participants");
     const handler = (event: Y.YMapEvent<unknown>) => {
-      if (!isHostRef.current) return;
-      // Find newly added keys
-      const knownKeys = new Set<string>();
-      for (const entry of peersRef.current.values()) {
-        if (entry.participantKey) knownKeys.add(entry.participantKey);
+      // For joiners: re-derive status map when participants change
+      if (!isHostRef.current) {
+        updatePeersState();
+        return;
       }
-      knownKeys.add("host");
 
+      // For host: assign participant keys to connected peers
       let changed = false;
       for (const [key, change] of event.changes.keys) {
-        if (change.action === "add" && !knownKeys.has(key)) {
-          // Assign to the most recently connected peer without a participantKey
+        if (change.action === "delete") continue;
+
+        // Check if this key is already assigned to a connected peer
+        let ownedByConnected = false;
+        let disconnectedOwner: PeerEntry | undefined;
+        for (const entry of peersRef.current.values()) {
+          if (entry.participantKey === key) {
+            if (entry.status === "connected") {
+              ownedByConnected = true;
+            } else if (entry.status === "disconnected") {
+              disconnectedOwner = entry;
+            }
+            break;
+          }
+        }
+        if (key === "host") ownedByConnected = true;
+
+        if (!ownedByConnected) {
+          // Assign to a connected peer without a participantKey
           for (const entry of peersRef.current.values()) {
             if (entry.status === "connected" && !entry.participantKey) {
               entry.participantKey = key;
+              if (disconnectedOwner) disconnectedOwner.participantKey = undefined;
               changed = true;
               break;
             }
@@ -501,7 +519,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
             // -- Become joiner --
             if (!data.offer) throw new Error("No offer from host");
-            const localKey = "joiner-" + crypto.randomUUID().slice(0, 8);
+            let localKey = sessionStorage.getItem("localPeerId");
+            if (!localKey) {
+              localKey = "joiner-" + crypto.randomUUID().slice(0, 8);
+              sessionStorage.setItem("localPeerId", localKey);
+            }
             setLocalPeerId(localKey);
             participants.set(localKey, displayName);
 
