@@ -1,0 +1,171 @@
+{
+  "project": "Simple Free Scrum Poker",
+  "description": "A free, real-time scrum poker (planning poker) web app for agile teams to estimate story points collaboratively. The host creates a named room, shares the URL with teammates, and everyone votes simultaneously using card selections. Votes are hidden until any participant reveals them, then cleared for the next round. The app uses peer-to-peer WebRTC connections (star topology, host relays) for real-time communication, with Vercel serverless functions handling only the initial signaling handshake. No persistent backend or database is needed — all state lives in-memory across connected peers via Yjs CRDTs.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Project scaffolding and build system",
+      "description": "As a developer, I need the project scaffolded with Bun, React, Tailwind, shadcn/ui components, and the Vercel deployment config so that all subsequent stories have a working foundation.",
+      "acceptanceCriteria": [
+        "src/index.ts serves src/index.html via Bun.serve() with HMR",
+        "src/frontend.tsx renders a React 19 root",
+        "Tailwind CSS works via bun-plugin-tailwind",
+        "shadcn/ui Button and Input components are available",
+        "build.ts produces a dist/ output compatible with Vercel",
+        "vercel.json configures Bun runtime, build command, output directory, and SPA rewrite",
+        "bunfig.toml configures Tailwind plugin",
+        "bun dev starts the dev server on port 3000",
+        "TypeScript compiles without errors"
+      ],
+      "priority": 1,
+      "passes": false,
+      "inProgress": true
+    },
+    {
+      "id": "US-002",
+      "title": "WebRTC signaling serverless function",
+      "description": "As a developer, I need the signaling API ported from the reference app so that peers can exchange WebRTC offers and answers to establish direct connections.",
+      "acceptanceCriteria": [
+        "api/signaling.ts Vercel function handles POST and GET requests",
+        "src/signaling.ts implements in-memory session store with create, join, poll-answer, submit-answer, replace-offer, delete-session actions",
+        "src/handleSignaling.ts dispatches requests to the correct action",
+        "Sessions auto-expire after 30 minutes of inactivity",
+        "Stale host detection (\u003e10s without polling) allows next joiner to become host",
+        "Works identically to reference app's signaling protocol"
+      ],
+      "priority": 2,
+      "passes": false
+    },
+    {
+      "id": "US-003",
+      "title": "WebRTC connection layer",
+      "description": "As a developer, I need the WebRTC primitives (createOffer, acceptOffer, acceptAnswer) ported from the reference app so that peers can establish data channels for real-time communication.",
+      "acceptanceCriteria": [
+        "src/webrtc.ts provides createOffer(), acceptOffer(), acceptAnswer() functions",
+        "Data channels use binaryType = \"arraybuffer\" for Yjs binary updates",
+        "ICE candidates are bundled into the SDP offer/answer strings (base64-encoded)",
+        "Connection state changes (open, close, error) are reported via callbacks"
+      ],
+      "priority": 3,
+      "passes": false
+    },
+    {
+      "id": "US-004",
+      "title": "Session store with Yjs CRDT sync",
+      "description": "As a developer, I need a React context that manages the Yjs document, peer connections, and session lifecycle so that all participants share synchronized poker state.",
+      "acceptanceCriteria": [
+        "src/store.tsx provides a React context with session state",
+        "Yjs Y.Doc holds shared poker state: participants map, votes map, revealed boolean, room name",
+        "Host connects to each joiner in star topology; host relays Yjs updates between peers",
+        "Joiner connects to host and receives full document state on connect",
+        "Connection/disconnection of peers updates the participants list in real-time",
+        "useSyncExternalStore or equivalent hook triggers React re-renders on Yjs updates"
+      ],
+      "priority": 4,
+      "passes": false
+    },
+    {
+      "id": "US-005",
+      "title": "Home page — create a room",
+      "description": "As a host, I want to enter a room name on the home page and create a poker room so that I can start a planning session.",
+      "acceptanceCriteria": [
+        "Home page (/) shows an input field for room name and a \"Create Room\" button",
+        "Room name is required; button is disabled when input is empty",
+        "On submit, browser navigates to /{slugified-room-name} using history.pushState",
+        "The slug is URL-safe: lowercase, spaces become hyphens, special characters removed",
+        "The user is prompted for their display name if not already stored in localStorage",
+        "Display name is saved to localStorage after first entry",
+        "Host automatically joins the room as the first participant"
+      ],
+      "priority": 5,
+      "passes": false
+    },
+    {
+      "id": "US-006",
+      "title": "Join a room via shared link",
+      "description": "As a teammate, I want to open a shared room URL and join the poker session so that I can participate in estimation.",
+      "acceptanceCriteria": [
+        "Navigating to /{room-slug} opens the poker room",
+        "If no display name is in localStorage, a modal/dialog prompts for it before joining",
+        "Display name is saved to localStorage for future sessions",
+        "If display name already exists in localStorage, user joins immediately without prompt",
+        "The joiner appears in the participants list for all connected peers",
+        "If the room doesn't exist yet (no host), the joiner becomes the host"
+      ],
+      "priority": 6,
+      "passes": false
+    },
+    {
+      "id": "US-007",
+      "title": "Card deck and voting",
+      "description": "As a participant, I want to select a card from the Fibonacci-like deck to cast my vote so that my estimate is recorded.",
+      "acceptanceCriteria": [
+        "Card deck displays: ?, coffee-icon, 0, 0.5, 1, 2, 3, 5, 8, 13, 20, 40, 100",
+        "Clicking a card selects it (visually highlighted, e.g. raised/bordered)",
+        "Clicking the same card again deselects it",
+        "Clicking a different card changes the selection",
+        "The vote is synced to all peers via Yjs in real-time",
+        "Other participants see that this user \"has voted\" but NOT the value (until reveal)"
+      ],
+      "priority": 7,
+      "passes": false
+    },
+    {
+      "id": "US-008",
+      "title": "Participants list with vote status",
+      "description": "As a participant, I want to see who is in the room and whether they have voted so that I know when everyone is ready.",
+      "acceptanceCriteria": [
+        "A table/list shows all connected participants by display name",
+        "Each participant row shows a vote indicator: checkmark if voted, dash/empty if not",
+        "The vote value is hidden (shown as a face-down card icon or \"?\") until revealed",
+        "Participants who disconnect are removed from the list",
+        "The current user's row is visually distinguished (e.g. bold or highlighted)"
+      ],
+      "priority": 8,
+      "passes": false
+    },
+    {
+      "id": "US-009",
+      "title": "Reveal votes",
+      "description": "As any participant, I want to click \"Reveal\" to flip all cards and see everyone's estimates so that the team can discuss.",
+      "acceptanceCriteria": [
+        "A \"Reveal\" button is visible to all participants",
+        "Clicking \"Reveal\" sets the shared revealed flag to true via Yjs",
+        "All participants see all vote values simultaneously",
+        "Cards animate with a flip effect when revealed (CSS transform, ~300ms)",
+        "The \"Reveal\" button is replaced by or disabled after reveal"
+      ],
+      "priority": 9,
+      "passes": false
+    },
+    {
+      "id": "US-010",
+      "title": "Clear votes for next round",
+      "description": "As any participant, I want to click \"Clear\" after discussion to reset all votes so that the team can estimate the next story.",
+      "acceptanceCriteria": [
+        "A \"Clear\" / \"New Round\" button appears after votes are revealed",
+        "Clicking it clears all votes and sets revealed back to false via Yjs",
+        "All participants' card selections are reset",
+        "The card deck returns to unselected state for everyone",
+        "The participants list shows all participants as \"not yet voted\""
+      ],
+      "priority": 10,
+      "passes": false
+    },
+    {
+      "id": "US-011",
+      "title": "SPA routing",
+      "description": "As a developer, I need client-side routing so that / shows the home page and /{room-slug} shows the poker room, with Vercel's SPA rewrite handling direct URL access.",
+      "acceptanceCriteria": [
+        "/ renders the home/create-room page",
+        "/{room-slug} renders the poker room page",
+        "history.pushState is used for navigation (no full page reloads)",
+        "popstate event is handled for browser back/forward",
+        "Vercel rewrite rule sends all non-API routes to index.html",
+        "Direct URL access to /{room-slug} works (loads app, then joins room)"
+      ],
+      "priority": 11,
+      "passes": false
+    }
+  ]
+}
