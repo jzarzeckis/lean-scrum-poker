@@ -1,9 +1,11 @@
 import { serve } from "bun";
 import index from "./index.html";
+import { handleSignaling } from "./handleSignaling";
 
 const server = serve({
   port: 3000,
   routes: {
+    "/api/signaling": handleSignaling,
     // Serve index.html for all unmatched routes (SPA).
     "/*": index,
   },
