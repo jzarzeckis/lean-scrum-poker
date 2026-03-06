@@ -76,6 +76,9 @@ The architecture, signaling protocol, build system, and deployment config are di
 
 **Acceptance Criteria:**
 - [ ] Home page (`/`) shows an input field for room name and a "Create Room" button
+- [ ] Uses shadcn/ui `Card`, `CardHeader`, `CardContent` as the centered container
+- [ ] Uses shadcn/ui `Input` for the room name field with `Label`
+- [ ] Uses shadcn/ui `Button` for "Create Room"
 - [ ] Room name is required; button is disabled when input is empty
 - [ ] On submit, browser navigates to `/{slugified-room-name}` using `history.pushState`
 - [ ] The slug is URL-safe: lowercase, spaces become hyphens, special characters removed
@@ -89,7 +92,8 @@ The architecture, signaling protocol, build system, and deployment config are di
 
 **Acceptance Criteria:**
 - [ ] Navigating to `/{room-slug}` opens the poker room
-- [ ] If no display name is in localStorage, a modal/dialog prompts for it before joining
+- [ ] If no display name is in localStorage, a shadcn/ui `Dialog` (with `DialogHeader`, `DialogContent`, `DialogFooter`) prompts for it before joining
+- [ ] The dialog uses shadcn/ui `Input` with `Label` for the name field and `Button` for confirm
 - [ ] Display name is saved to localStorage for future sessions
 - [ ] If display name already exists in localStorage, user joins immediately without prompt
 - [ ] The joiner appears in the participants list for all connected peers
@@ -101,7 +105,9 @@ The architecture, signaling protocol, build system, and deployment config are di
 
 **Acceptance Criteria:**
 - [ ] Card deck displays: ?, coffee-icon, 0, 0.5, 1, 2, 3, 5, 8, 13, 20, 40, 100
-- [ ] Clicking a card selects it (visually highlighted, e.g. raised/bordered)
+- [ ] Each card uses shadcn/ui `Button` with `variant="outline"` as the base; selected state uses `variant="default"` or adds a `ring` + `shadow` via className
+- [ ] The coffee card uses a Lucide `Coffee` icon (from the project's configured `lucide` icon library)
+- [ ] Clicking a card selects it (visually highlighted)
 - [ ] Clicking the same card again deselects it
 - [ ] Clicking a different card changes the selection
 - [ ] The vote is synced to all peers via Yjs in real-time
@@ -112,29 +118,30 @@ The architecture, signaling protocol, build system, and deployment config are di
 **Description:** As a participant, I want to see who is in the room and whether they have voted so that I know when everyone is ready.
 
 **Acceptance Criteria:**
-- [ ] A table/list shows all connected participants by display name
-- [ ] Each participant row shows a vote indicator: checkmark if voted, dash/empty if not
-- [ ] The vote value is hidden (shown as a face-down card icon or "?") until revealed
+- [ ] Uses shadcn/ui `Card` as the container for the participants list
+- [ ] Each participant row uses a simple flex layout inside the card (not a full `Table` — keep it lightweight)
+- [ ] Each participant row shows a vote indicator: Lucide `Check` icon if voted, Lucide `Minus` icon if not
+- [ ] The vote value is hidden (shown as "?" text) until revealed
 - [ ] Participants who disconnect are removed from the list
-- [ ] The current user's row is visually distinguished (e.g. bold or highlighted)
+- [ ] The current user's row is visually distinguished (e.g. `font-bold` or `bg-muted` using Tailwind utility classes that match the shadcn/ui theme)
 
 ### US-009: Reveal votes
 **Priority:** 9
 **Description:** As any participant, I want to click "Reveal" to flip all cards and see everyone's estimates so that the team can discuss.
 
 **Acceptance Criteria:**
-- [ ] A "Reveal" button is visible to all participants
+- [ ] A shadcn/ui `Button` labeled "Reveal" is visible to all participants
 - [ ] Clicking "Reveal" sets the shared `revealed` flag to true via Yjs
 - [ ] All participants see all vote values simultaneously
 - [ ] Cards animate with a flip effect when revealed (CSS transform, ~300ms)
-- [ ] The "Reveal" button is replaced by or disabled after reveal
+- [ ] The "Reveal" button is disabled after reveal
 
 ### US-010: Clear votes for next round
 **Priority:** 10
 **Description:** As any participant, I want to click "Clear" after discussion to reset all votes so that the team can estimate the next story.
 
 **Acceptance Criteria:**
-- [ ] A "Clear" / "New Round" button appears after votes are revealed
+- [ ] A shadcn/ui `Button` (with `variant="secondary"` or `variant="outline"`) labeled "New Round" appears after votes are revealed
 - [ ] Clicking it clears all votes and sets `revealed` back to false via Yjs
 - [ ] All participants' card selections are reset
 - [ ] The card deck returns to unselected state for everyone
@@ -161,7 +168,7 @@ The architecture, signaling protocol, build system, and deployment config are di
 - FR-5: If no display name is in localStorage, prompt for it via a modal before joining any room
 - FR-6: Display name is stored in localStorage under a known key and reused across sessions
 - FR-7: The card deck contains these values in order: `?`, `coffee`, `0`, `0.5`, `1`, `2`, `3`, `5`, `8`, `13`, `20`, `40`, `100`
-- FR-8: The `coffee` card displays a coffee cup icon instead of text
+- FR-8: The `coffee` card displays a Lucide `Coffee` icon instead of text
 - FR-9: A participant's vote is stored in the Yjs shared map keyed by their peer ID
 - FR-10: The `revealed` flag is a shared Yjs boolean — when false, other participants' votes are hidden; when true, all votes are shown
 - FR-11: The "Reveal" button sets `revealed = true`; the "Clear" button resets all votes and sets `revealed = false`
@@ -170,6 +177,8 @@ The architecture, signaling protocol, build system, and deployment config are di
 - FR-14: Peer connections use WebRTC data channels in star topology (host relays updates)
 - FR-15: Signaling uses Vercel serverless functions at `/api/signaling` with the same protocol as the reference app
 - FR-16: Participants who disconnect are removed from the shared state after connection close
+- FR-17: All UI components must use shadcn/ui primitives idiomatically — do not create custom components from scratch when a shadcn/ui equivalent exists. Install additional shadcn/ui components as needed via `bunx shadcn@latest add <component>`
+- FR-18: All icons must use Lucide React (`lucide-react`), the project's configured icon library
 
 ## Non-Goals (Out of Scope)
 
@@ -184,17 +193,35 @@ The architecture, signaling protocol, build system, and deployment config are di
 - No email sharing functionality
 - No mobile-specific responsive layout (basic responsiveness via Tailwind is fine, but no dedicated mobile UI)
 - No host-only privileges — all participants are equal
+- No custom UI component library — use shadcn/ui exclusively for all standard UI elements (buttons, inputs, cards, dialogs, etc.)
 
 ## Design Considerations
 
-- Use shadcn/ui components (Button, Input, Dialog, Table) for consistent styling
-- Tailwind CSS for layout and custom styling
-- Cards should look like playing cards — rectangular with rounded corners, centered value, subtle border
-- Selected card should visually "lift" (shadow + slight scale or translate-y)
-- Flip animation on reveal: CSS `transform: rotateY(180deg)` with `backface-visibility: hidden`
-- Card back (before reveal) shows a generic pattern or solid color
-- Keep the layout simple: card deck at top, participants table below, action buttons (Reveal/Clear) between them
-- Home page should be minimal: centered card with room name input
+### shadcn/ui-first approach (MANDATORY)
+- **Always use shadcn/ui components before building custom ones.** Do not create custom components from scratch when a shadcn/ui primitive exists.
+- shadcn/ui is configured with `new-york` style, `neutral` base color, CSS variables enabled, and `lucide` icon library (see `components.json`)
+- Currently installed: `Button`, `Input`, `Card`, `Label`, `Select`, `Textarea`
+- Install additional shadcn/ui components as needed (e.g. `Dialog`, `Badge`, `Tooltip`) via `bunx shadcn@latest add <component>`
+- All icons must use Lucide React (`lucide-react`) — the project's configured icon library
+- Use shadcn/ui's built-in variants (e.g. `variant="outline"`, `variant="secondary"`, `size="sm"`) rather than overriding styles with custom CSS
+- When custom styling is needed, extend shadcn/ui components via `className` using Tailwind utilities that reference the shadcn/ui theme tokens (e.g. `bg-muted`, `text-muted-foreground`, `border-border`, `ring-ring`)
+
+### Component mapping
+| UI element | shadcn/ui component(s) |
+|---|---|
+| Home page container | `Card`, `CardHeader`, `CardContent` |
+| Room name input | `Input` + `Label` |
+| Create Room / Reveal / New Round buttons | `Button` (with appropriate `variant`) |
+| Display name prompt | `Dialog`, `DialogContent`, `DialogHeader`, `DialogFooter` + `Input` + `Label` |
+| Poker card (vote option) | `Button variant="outline"` (selected: `variant="default"` or ring/shadow) |
+| Participants list container | `Card` |
+| Vote status icons | Lucide `Check`, `Minus`, `Coffee` icons |
+
+### Visual styling
+- Poker cards: use `Button` with fixed dimensions, rounded corners — selected card gets `ring-2 ring-ring shadow-lg` via className
+- Flip animation on reveal: CSS `transform: rotateY(180deg)` with `backface-visibility: hidden` — applied as a wrapper around the shadcn/ui Button, not replacing it
+- Keep the layout simple: card deck at top, participants list below, action buttons (Reveal/New Round) between them
+- Home page should be minimal: centered `Card` with room name input
 
 ## Technical Considerations
 

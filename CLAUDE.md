@@ -68,6 +68,8 @@ Bun.serve({
 })
 ```
 
+Remember this is a shadcn app - please ensure when building all new functionality to make it idiomatic with components available at [shadcn](https://ui.shadcn.com/llms.txt) to avoid reinventing the wheel - and keep components simple!
+
 HTML files can import .tsx, .jsx or .js files directly and Bun's bundler will transpile & bundle automatically. `<link>` tags can point to stylesheets and Bun's CSS bundler will bundle.
 
 ```html#index.html
