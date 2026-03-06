@@ -8,6 +8,7 @@
 - Signaling API route is `/api/signaling?action=<action>` — POST for mutations, GET for poll-answer
 - `src/handleSignaling.ts` is the shared dispatcher used by both dev server and Vercel function
 - Dev server wires signaling via `routes: { "/api/signaling": handleSignaling }` in `src/index.ts`
+- `src/webrtc.ts` provides WebRTC primitives: createOffer, acceptOffer, acceptAnswer with base64-encoded SDP+ICE bundling
 
 ---
 
@@ -38,4 +39,16 @@
   - Sessions auto-expire: 30min max age, 2min without host poll, 10s stale threshold for takeover
   - `api/signaling.ts` just delegates to `handleSignaling` — keeps Vercel function minimal
   - The `api/` directory is for Vercel serverless functions; `vercel.json` rewrites route API requests there
+---
+
+## 2026-03-06 - US-003
+- What was implemented: WebRTC connection layer ported from reference app
+- Files changed:
+  - `src/webrtc.ts` - createOffer, acceptOffer, acceptAnswer functions with ICE gathering, data channel setup, and base64 encoding
+- **Learnings for future iterations:**
+  - WebRTC flow: Joiner creates offer -> Host accepts offer (produces answer) -> Joiner accepts answer -> connection complete
+  - Data channel named "yjs" with ordered delivery and arraybuffer binary type for Yjs updates
+  - ICE gathering uses a 3-second timeout fallback if `icegatheringstatechange` doesn't fire
+  - SDP + ICE candidates are bundled into a single base64 string for signaling exchange
+  - encode/decode helpers are exported for reuse by the store layer
 ---
