@@ -136,3 +136,13 @@
   - Flip animation uses CSS `perspective` + `transformStyle: preserve-3d` + `backfaceVisibility: hidden` on front/back faces
   - Front face shows Check/Minus icons; back face shows vote value or dash — rotateY(180deg) flips between them
 ---
+
+## 2026-03-06 - US-010
+- What was implemented: "New Round" button to clear votes and reset revealed state
+- Files changed:
+  - `src/RoomPage.tsx` - Added `handleNewRound` function that clears all votes from Yjs map and sets `revealed` to false inside `doc.transact()`; "New Round" button with `variant="outline"` appears conditionally when `revealed` is true
+- **Learnings for future iterations:**
+  - Use `doc.transact()` to batch multiple Yjs map operations (clearing votes + resetting revealed) into a single atomic update
+  - Clearing Yjs map entries requires iterating with `forEach` and deleting each key (no `clear()` method on Y.Map)
+  - CardDeck automatically resets to unselected state when votes are cleared because it reads `currentVote` from the Yjs votes map
+---
