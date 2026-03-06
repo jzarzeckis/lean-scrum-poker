@@ -84,7 +84,7 @@ function RoomContent() {
 }
 
 export function RoomPage({ slug }: { slug: string }) {
-  const { connectToSession, leaveSession, sessionState } = useStore();
+  const { connectToSession, leaveSession, sessionState, doc, peerCount, errorMessage } = useStore();
   useYjsSnapshot();
 
   const [needsName, setNeedsName] = useState(false);
@@ -126,16 +126,23 @@ export function RoomPage({ slug }: { slug: string }) {
       <h1 className="text-3xl font-bold mb-4">Room: {slug}</h1>
       <div className="flex items-center justify-center gap-3 mb-6">
         <p className="text-muted-foreground">
-          {sessionState === "hosting"
-            ? "Hosting — waiting for participants..."
-            : sessionState === "connected"
-              ? "Connected"
-              : sessionState === "connecting"
-                ? "Connecting..."
-                : sessionState === "error"
-                  ? "Connection error"
-                  : ""}
+          {sessionState === "hosting" || sessionState === "connected"
+            ? (() => {
+                const totalParticipants = doc.getMap("participants").size;
+                const connectedCount = sessionState === "hosting"
+                  ? peerCount + 1 // +1 for host (self)
+                  : totalParticipants; // joiner sees all via host
+                return `${sessionState === "hosting" ? "Hosting" : "Connected"} — ${connectedCount}/${totalParticipants} connected`;
+              })()
+            : sessionState === "connecting"
+              ? "Connecting..."
+              : sessionState === "error"
+                ? errorMessage || "Connection error"
+                : ""}
         </p>
+        {sessionState === "connecting" && (
+          <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+        )}
         {(sessionState === "hosting" || sessionState === "connected") && (
           <Button variant="ghost" size="sm" onClick={handleLeave} className="text-muted-foreground">
             <LogOut className="h-4 w-4 mr-1" />
