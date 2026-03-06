@@ -65,3 +65,14 @@
   - `leaveSession` must clear Yjs maps in addition to closing PCs — otherwise stale CRDT state persists in the doc
   - `joinedRef.current` must be reset to `false` on leave so the name dialog shows again on rejoin
 ---
+
+## 2026-03-06 - US-003
+- What was implemented: Peer connection summary in room header showing connected/total count
+- Files changed:
+  - `src/RoomPage.tsx` — Updated header to show "Hosting — X/Y connected" or "Connected — X/Y connected" with counts from store's `peerCount` and Yjs participants map size. Added pulsing amber dot during "Connecting..." state. Error state now shows `errorMessage` from store.
+- **Learnings for future iterations:**
+  - Host's connected count = `peerCount + 1` (peerCount only counts remote peers, +1 for self)
+  - Joiner sees all participants through the host connection, so total == connected when host link is up
+  - `doc.getMap("participants").size` gives total participant count (reactive via `useYjsSnapshot`)
+  - Pre-existing TS error in HomePage.tsx (suit type) is unrelated — only that one error in typecheck output
+---
