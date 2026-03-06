@@ -5,6 +5,8 @@
 - Dev server runs on port 3000 via `bun --hot src/index.ts`
 - `reference-similar-sample-app` is a symlinked reference project (excluded from tsconfig)
 - Use `Record<string, any>` for dynamic CLI config parsing in build.ts to avoid TS strict mode issues
+- shadcn/ui Dialog component is at `src/components/ui/dialog.tsx` (uses `@radix-ui/react-dialog`)
+- `RoomPage.tsx` handles join-via-link: auto-joins if displayName in localStorage, else shows Dialog
 - Signaling API route is `/api/signaling?action=<action>` — POST for mutations, GET for poll-answer
 - `src/handleSignaling.ts` is the shared dispatcher used by both dev server and Vercel function
 - Dev server wires signaling via `routes: { "/api/signaling": handleSignaling }` in `src/index.ts`
@@ -80,4 +82,18 @@
   - slugify: lowercase, trim, remove special chars, spaces→hyphens
   - Router uses `window.location.pathname` + popstate for SPA routing
   - `connectToSession(slug, displayName)` from store handles both host and joiner roles
+---
+
+## 2026-03-06 - US-006
+- What was implemented: Join a room via shared link with shadcn/ui Dialog for display name prompt
+- Files changed:
+  - `src/components/ui/dialog.tsx` - Created shadcn/ui Dialog component (Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription)
+  - `src/RoomPage.tsx` - Created room page with auto-join (if localStorage has displayName) or Dialog prompt
+  - `src/App.tsx` - Updated Router to render RoomPage for `/{room-slug}` paths
+  - `package.json` / `bun.lock` - Added `@radix-ui/react-dialog` dependency
+- **Learnings for future iterations:**
+  - RoomPage uses `joinedRef` to prevent double-joining on re-renders
+  - Dialog `onOpenChange` prevents closing without entering a name (checks `joinedRef.current`)
+  - The store's `connectToSession` handles both host (no existing session) and joiner roles automatically
+  - Future stories (US-007, US-008, US-009, US-010) will add card deck, participants list, reveal/clear to RoomPage
 ---

@@ -96,7 +96,7 @@
         "If the room doesn't exist yet (no host), the joiner becomes the host"
       ],
       "priority": 6,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-007",
