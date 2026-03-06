@@ -17,3 +17,13 @@
   - Host tracks participantKey per peer; joiners see all remote participants via host connection
   - `updatePeersState()` is called whenever peer status changes — good place to compute derived maps
 ---
+
+## 2026-03-06 - US-002
+- What was implemented: Host badge next to host's name in ParticipantsList, using a subtle muted chip style
+- Files changed:
+  - `src/ParticipantsList.tsx` — Added "Host" badge chip next to participant name when `peerId === "host"`
+- **Learnings for future iterations:**
+  - The host participant key is always `"host"` — this is set in store.tsx line 424, so checking `peerId === "host"` reliably identifies the host in both host and joiner views
+  - Room header already showed "Hosting" vs "Connected" text in RoomPage.tsx (lines 121-129), so no changes needed there
+  - No shadcn Badge component installed — used inline Tailwind classes for the chip instead
+---
