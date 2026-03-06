@@ -1,4 +1,4 @@
-import { handleSignaling } from "../src/handleSignaling";
+import { handleSignaling } from "../src/handleSignaling.js";
 
 export default {
   async fetch(request: Request) {

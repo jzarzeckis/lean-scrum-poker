@@ -10,7 +10,7 @@ import {
   submitAnswer,
   pollAnswer,
   replaceOffer,
-} from "./signaling";
+} from "./signaling.js";
 
 export async function handleSignaling(request: Request): Promise<Response> {
   const url = new URL(request.url);
