@@ -1,0 +1,232 @@
+{
+  "project": "Peer Connectivity Statuses \u0026 WebRTC Robustness",
+  "description": "The scrum poker app uses WebRTC with a star topology (host relays Yjs updates to joiners). While the basic connectivity works, there are critical bugs and missing UI feedback around peer connection status. The most severe issue: when the host refreshes their browser, joiners are stranded in a permanent \"Connecting...\" state with no recovery. This PRD addresses all connectivity edge cases, adds visual status indicators, and brings the implementation up to the quality level of the reference app.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Show colored connectivity dot next to each participant",
+      "description": "As a participant, I want to see a colored dot next to each person's name so I know who is actively connected.",
+      "acceptanceCriteria": [
+        "Each participant row in the ParticipantsList shows a small colored dot to the left of their name",
+        "Green dot (emerald-500) = connected",
+        "Amber dot with pulse animation = connecting",
+        "Gray dot = disconnected",
+        "Icons use lucide-react icons available in the project (Circle or similar)",
+        "The dot updates in real-time as peer status changes",
+        "Typecheck passes (bunx tsc --noEmit)"
+      ],
+      "priority": 1,
+      "passes": true
+    },
+    {
+      "id": "US-002",
+      "title": "Show host badge and role indicator",
+      "description": "As a host, I want to see that I am the host so I understand my special role in the session.",
+      "acceptanceCriteria": [
+        "The host's own row in the participants list shows a \"Host\" badge (small chip/tag)",
+        "The room header text shows \"Hosting\" when the user is the host, \"Connected\" when a joiner",
+        "The host badge uses a distinct but subtle style (e.g., muted background chip)",
+        "Joiners see the host labeled as \"Host\" in the participants list too",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false
+    },
+    {
+      "id": "US-003",
+      "title": "Show peer connection summary in room header",
+      "description": "As a participant, I want to see a summary of connection status in the room header so I have a quick overview.",
+      "acceptanceCriteria": [
+        "Room header shows connected peer count (e.g., \"3 connected\" or \"3/4 participants\")",
+        "The count updates in real-time as peers connect/disconnect",
+        "When in \"connecting\" state, show \"Connecting...\" with a pulsing animation",
+        "When connection errors occur, show the error message",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false
+    },
+    {
+      "id": "US-004",
+      "title": "Fade out and remove disconnected participants after 30s",
+      "description": "As a participant, I want disconnected users to fade out and disappear after 30 seconds so the list stays clean.",
+      "acceptanceCriteria": [
+        "When a participant disconnects, their row shows the gray dot immediately",
+        "After ~25 seconds, the row begins a fade-out animation (opacity transition over ~5 seconds)",
+        "After 30 seconds total, the participant is removed from the Yjs participants map (host only) and their vote is cleared",
+        "The existing 10-second cleanup interval properly removes stale peer entries",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false
+    },
+    {
+      "id": "US-005",
+      "title": "Fix host refresh stranding joiners",
+      "description": "As a joiner, when the host refreshes their browser I want to automatically detect the disconnection and reconnect, rather than being stuck forever.",
+      "acceptanceCriteria": [
+        "When host refreshes, joiner detects disconnect within 5 seconds (via RTCPeerConnection state change or data channel close)",
+        "Joiner transitions to \"Connecting...\" state and begins retry loop (3-second intervals)",
+        "The refreshed host re-creates the session and becomes host again",
+        "Joiner successfully reconnects to the new host session",
+        "Joiner's display name is preserved across reconnection (from localStorage)",
+        "Yjs state is synced from the new host on reconnection",
+        "Verified via Playwright: open two browser tabs, host refreshes, joiner reconnects within 15 seconds",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false
+    },
+    {
+      "id": "US-006",
+      "title": "Fix joiner refresh leaving ghost participants",
+      "description": "As a host, when a joiner refreshes their browser I want their old entry to be cleaned up and the joiner to rejoin cleanly.",
+      "acceptanceCriteria": [
+        "When a joiner refreshes, the host detects the peer disconnect (RTCPeerConnection state change)",
+        "Host marks the disconnected peer entry and begins the 30-second cleanup timer",
+        "The refreshed joiner connects as a new participant (new peer ID, same display name from localStorage)",
+        "After 30 seconds, the old ghost participant entry is removed from Yjs",
+        "No duplicate participant names appear (old entry shows disconnected dot, new entry shows connected dot)",
+        "Verified via Playwright: host + joiner tabs, joiner refreshes, ghost cleans up within 35 seconds",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false
+    },
+    {
+      "id": "US-007",
+      "title": "Handle intentional disconnect (leave button / tab close)",
+      "description": "As a participant, when I click \"Leave\" or close the tab, my peers should be notified promptly.",
+      "acceptanceCriteria": [
+        "Clicking the Leave button: closes all RTCPeerConnections, host deletes session from signaling server",
+        "Closing the tab: peers detect disconnect via RTCPeerConnection state change within 5 seconds",
+        "Host closing tab: joiners detect disconnect and enter reconnection loop (will become new host if session is stale)",
+        "Joiner closing tab: host marks peer as disconnected, cleanup timer starts",
+        "Use beforeunload event to attempt graceful cleanup (close PCs) on tab close",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false
+    },
+    {
+      "id": "US-008",
+      "title": "Handle network loss and recovery",
+      "description": "As a participant, if my network drops temporarily I want the app to detect it and try to reconnect automatically.",
+      "acceptanceCriteria": [
+        "Network loss detected via RTCPeerConnection entering \"disconnected\" or \"failed\" state",
+        "UI shows \"Connecting...\" status during reconnection attempts",
+        "Retry loop attempts reconnection every 3 seconds",
+        "When network recovers, participant reconnects automatically",
+        "If reconnection succeeds, full Yjs state is re-synced",
+        "If host's network drops: joiners detect within 10 seconds and start retry loop",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false
+    },
+    {
+      "id": "US-009",
+      "title": "Pre-create offers for instant joiner connection",
+      "description": "As a developer, I want the host to always have a pre-created WebRTC offer ready on the server so joiners can connect instantly without waiting.",
+      "acceptanceCriteria": [
+        "When host creates a session, the first offer is created and posted before any joiner arrives",
+        "After each successful joiner handshake, host immediately creates and posts the next offer",
+        "Joiners calling join-session receive the pre-created offer instantly (no polling needed on joiner side)",
+        "Only the host polls (for answers), joiners never poll",
+        "This is already the current architecture - verify it works correctly and fix any race conditions",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false
+    },
+    {
+      "id": "US-010",
+      "title": "Cap room at 12 participants",
+      "description": "As a host, I want the room capped at 12 participants to keep the session manageable.",
+      "acceptanceCriteria": [
+        "Host stops creating new offers once 12 participants are in the Yjs participants map",
+        "New joiners attempting to join a full room receive a clear error message (\"Room is full\")",
+        "When a participant disconnects and is cleaned up, the slot opens for a new joiner",
+        "The signaling server returns an appropriate error for full rooms",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false
+    },
+    {
+      "id": "US-011",
+      "title": "Add data channel open timeout",
+      "description": "As a developer, I want a timeout on data channel establishment so connections don't hang forever if the handshake partially fails.",
+      "acceptanceCriteria": [
+        "After WebRTC handshake completes, if the data channel doesn't open within 10 seconds, the connection is considered failed",
+        "Failed connections trigger the standard disconnect/retry flow",
+        "The timeout is applied for both host-side (incoming data channel) and joiner-side (outgoing data channel)",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false
+    },
+    {
+      "id": "US-012",
+      "title": "Add error handling around SDP operations",
+      "description": "As a developer, I want try/catch around all SDP operations so malformed signaling data doesn't crash the app.",
+      "acceptanceCriteria": [
+        "acceptOffer() wraps setRemoteDescription() and addIceCandidate() in try/catch",
+        "acceptAnswer() wraps setRemoteDescription() and addIceCandidate() in try/catch",
+        "Errors are caught and surfaced as connection failures (triggering retry), not uncaught exceptions",
+        "Console warning is logged with the error details",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false
+    },
+    {
+      "id": "US-013",
+      "title": "Playwright E2E test for basic connectivity flow",
+      "description": "As a developer, I want an E2E test that verifies the basic host-joiner connectivity flow works end-to-end.",
+      "acceptanceCriteria": [
+        "Test opens two browser contexts (host and joiner) against the running dev server at localhost:3000",
+        "Host navigates to a room URL and enters display name",
+        "Host sees \"Hosting\" status",
+        "Joiner navigates to the same room URL and enters display name",
+        "Joiner sees \"Connected\" status within 15 seconds",
+        "Both participants appear in the participants list for both users",
+        "Test uses real Vercel signaling functions as backend",
+        "Test passes reliably"
+      ],
+      "priority": 3,
+      "passes": false
+    },
+    {
+      "id": "US-014",
+      "title": "Playwright E2E test for host refresh recovery",
+      "description": "As a developer, I want an E2E test that verifies joiners recover when the host refreshes.",
+      "acceptanceCriteria": [
+        "Test establishes a connected session between host and joiner",
+        "Host page is refreshed (page.reload())",
+        "Joiner detects disconnect and shows \"Connecting...\" state",
+        "Host re-enters room and becomes host again",
+        "Joiner reconnects to the new host within 20 seconds",
+        "Both participants see each other in the participants list again",
+        "Test passes reliably"
+      ],
+      "priority": 3,
+      "passes": false
+    },
+    {
+      "id": "US-015",
+      "title": "Playwright E2E test for joiner refresh recovery",
+      "description": "As a developer, I want an E2E test that verifies joiner refresh works cleanly without leaving ghost participants.",
+      "acceptanceCriteria": [
+        "Test establishes a connected session between host and joiner",
+        "Joiner page is refreshed",
+        "Joiner reconnects within 15 seconds",
+        "Old ghost participant entry eventually disappears (within 35 seconds)",
+        "No permanent duplicate names in the participants list",
+        "Test passes reliably"
+      ],
+      "priority": 3,
+      "passes": false
+    }
+  ]
+}
