@@ -393,9 +393,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const run = async () => {
         while (!ac.signal.aborted) {
           try {
-            // Reset Yjs doc on first attempt / retry
+            // Reset Yjs doc state on retry to prevent stale CRDT data merging
             const participants = doc.getMap("participants");
+            const votes = doc.getMap("votes");
             const meta = doc.getMap("meta");
+            doc.transact(() => {
+              participants.forEach((_v, k) => participants.delete(k));
+              votes.forEach((_v, k) => votes.delete(k));
+              meta.forEach((_v, k) => meta.delete(k));
+            });
 
             // Clean up old connections on retry
             for (const peer of peersRef.current.values()) peer.pc.close();
@@ -610,6 +616,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }, 10_000);
     return () => clearInterval(interval);
   }, [doc, updatePeersState]);
+
+  // Graceful cleanup on tab close / refresh (best-effort via sendBeacon)
+  useEffect(() => {
+    const handler = () => {
+      if (isHostRef.current && sessionNameRef.current && hostIdRef.current) {
+        // Use sendBeacon for reliable delivery during unload
+        const payload = JSON.stringify({
+          name: sessionNameRef.current,
+          hostId: hostIdRef.current,
+        });
+        navigator.sendBeacon(
+          "/api/signaling?action=delete-session",
+          new Blob([payload], { type: "application/json" }),
+        );
+      }
+      // Close all peer connections
+      for (const peer of peersRef.current.values()) {
+        try { peer.pc.close(); } catch {}
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
