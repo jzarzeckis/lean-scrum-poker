@@ -142,7 +142,7 @@
         "The \"Reveal\" button is disabled after reveal"
       ],
       "priority": 9,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-010",

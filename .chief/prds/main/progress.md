@@ -125,3 +125,14 @@
   - Stale peer cleanup (30s) also removes participant and vote entries from Yjs maps
   - `doc.getMap("meta").get("revealed")` controls whether vote values are shown or hidden
 ---
+
+## 2026-03-06 - US-009
+- What was implemented: Reveal button and card flip animation for showing votes
+- Files changed:
+  - `src/RoomPage.tsx` - Extracted `RoomContent` component with Reveal button that sets `meta.revealed` to true via Yjs; button disabled after reveal
+  - `src/ParticipantsList.tsx` - Replaced static vote indicators with CSS 3D flip animation (~300ms) using perspective, backface-visibility, and rotateY transform
+- **Learnings for future iterations:**
+  - RoomContent is a separate component so it can independently call `useYjsSnapshot()` and read meta state
+  - Flip animation uses CSS `perspective` + `transformStyle: preserve-3d` + `backfaceVisibility: hidden` on front/back faces
+  - Front face shows Check/Minus icons; back face shows vote value or dash — rotateY(180deg) flips between them
+---
