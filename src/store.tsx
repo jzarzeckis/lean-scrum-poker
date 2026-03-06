@@ -59,11 +59,12 @@ interface StoreCtx {
 
   sessionState: SessionState;
   sessionName: string | null;
+  localPeerId: string | null;
   peerCount: number;
   peers: PeerInfo[];
   errorMessage: string | null;
 
-  connectToSession: (name: string) => void;
+  connectToSession: (name: string, displayName: string) => void;
   leaveSession: () => void;
 }
 
@@ -106,6 +107,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [peerCount, setPeerCount] = useState(0);
   const [peers, setPeers] = useState<PeerInfo[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [localPeerId, setLocalPeerId] = useState<string | null>(null);
 
   const peersRef = useRef<Map<string, PeerEntry>>(new Map());
   const isHostRef = useRef(false);
@@ -324,7 +326,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // -- Connect to session ---------------------------------------------------
 
   const connectToSession = useCallback(
-    (name: string) => {
+    (name: string, displayName: string) => {
       // Tear down any previous session
       abortRef.current?.abort();
       for (const peer of peersRef.current.values()) peer.pc.close();
@@ -343,6 +345,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const run = async () => {
         while (!ac.signal.aborted) {
           try {
+            // Reset Yjs doc on first attempt / retry
+            const participants = doc.getMap("participants");
+            const meta = doc.getMap("meta");
+
             // Clean up old connections on retry
             for (const peer of peersRef.current.values()) peer.pc.close();
             peersRef.current.clear();
@@ -366,6 +372,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               isHostRef.current = true;
               const hostId = crypto.randomUUID();
 
+              // Add self to participants and set room metadata
+              const localKey = "host";
+              setLocalPeerId(localKey);
+              participants.set(localKey, displayName);
+              meta.set("roomName", name);
+              meta.set("revealed", false);
+
               const result = await createAndPostOffer(name, hostId);
               if (!result) throw new Error("Failed to create session");
 
@@ -384,6 +397,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
             // -- Become joiner --
             if (!data.offer) throw new Error("No offer from host");
+            const localKey = "joiner-" + crypto.randomUUID().slice(0, 8);
+            setLocalPeerId(localKey);
+            participants.set(localKey, displayName);
 
             const peerId = crypto.randomUUID();
             const result = await acceptOffer(
@@ -516,6 +532,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     isHostRef.current = false;
     setSessionState("idle");
     setSessionName(null);
+    setLocalPeerId(null);
     setPeerCount(0);
     setPeers([]);
     setErrorMessage(null);
@@ -554,6 +571,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         doc,
         sessionState,
         sessionName,
+        localPeerId,
         peerCount,
         peers,
         errorMessage,

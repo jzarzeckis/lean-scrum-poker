@@ -11,6 +11,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { CardDeck } from "./CardDeck";
 
 export function RoomPage({ slug }: { slug: string }) {
   const { connectToSession, sessionState } = useStore();
@@ -46,7 +47,7 @@ export function RoomPage({ slug }: { slug: string }) {
   return (
     <div className="container mx-auto p-8 text-center">
       <h1 className="text-3xl font-bold mb-4">Room: {slug}</h1>
-      <p className="text-muted-foreground">
+      <p className="text-muted-foreground mb-6">
         {sessionState === "hosting"
           ? "Hosting — waiting for participants..."
           : sessionState === "connected"
@@ -57,6 +58,10 @@ export function RoomPage({ slug }: { slug: string }) {
                 ? "Connection error"
                 : ""}
       </p>
+
+      {(sessionState === "hosting" || sessionState === "connected") && (
+        <CardDeck />
+      )}
 
       <Dialog open={needsName} onOpenChange={(open) => { if (!open && !joinedRef.current) return; setNeedsName(open); }}>
         <DialogContent>
