@@ -33,7 +33,7 @@
         "Works identically to reference app's signaling protocol"
       ],
       "priority": 2,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-003",
