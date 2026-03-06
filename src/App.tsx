@@ -2,6 +2,7 @@ import "./index.css";
 import { useState, useEffect, useCallback } from "react";
 import { StoreProvider, useStore } from "./store";
 import { HomePage } from "./HomePage";
+import { RoomPage } from "./RoomPage";
 
 function Router() {
   const [path, setPath] = useState(window.location.pathname);
@@ -29,13 +30,7 @@ function Router() {
   const roomSlug = path !== "/" ? path.slice(1) : null;
 
   if (roomSlug) {
-    // Room page - will be built in later stories
-    return (
-      <div className="container mx-auto p-8 text-center">
-        <h1 className="text-3xl font-bold mb-4">Room: {roomSlug}</h1>
-        <p className="text-muted-foreground">Connecting...</p>
-      </div>
-    );
+    return <RoomPage slug={roomSlug} />;
   }
 
   return <HomePage onCreateRoom={handleCreateRoom} />;
