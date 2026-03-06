@@ -12,6 +12,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { CardDeck } from "./CardDeck";
+import { ParticipantsList } from "./ParticipantsList";
 
 export function RoomPage({ slug }: { slug: string }) {
   const { connectToSession, sessionState } = useStore();
@@ -60,7 +61,12 @@ export function RoomPage({ slug }: { slug: string }) {
       </p>
 
       {(sessionState === "hosting" || sessionState === "connected") && (
-        <CardDeck />
+        <>
+          <CardDeck />
+          <div className="mt-6">
+            <ParticipantsList />
+          </div>
+        </>
       )}
 
       <Dialog open={needsName} onOpenChange={(open) => { if (!open && !joinedRef.current) return; setNeedsName(open); }}>
