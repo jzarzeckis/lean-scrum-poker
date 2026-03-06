@@ -150,34 +150,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => doc.off("update", handler);
   }, [doc, broadcastUpdate]);
 
-  // Track participant keys for connected peers (host only)
-  useEffect(() => {
-    const participants = doc.getMap("participants");
-    const handler = (event: Y.YMapEvent<unknown>) => {
-      if (!isHostRef.current) return;
-      // Find newly added keys
-      const knownKeys = new Set<string>();
-      for (const entry of peersRef.current.values()) {
-        if (entry.participantKey) knownKeys.add(entry.participantKey);
-      }
-      knownKeys.add("host");
-
-      for (const [key, change] of event.changes.keys) {
-        if (change.action === "add" && !knownKeys.has(key)) {
-          // Assign to the most recently connected peer without a participantKey
-          for (const entry of peersRef.current.values()) {
-            if (entry.status === "connected" && !entry.participantKey) {
-              entry.participantKey = key;
-              break;
-            }
-          }
-        }
-      }
-    };
-    participants.observe(handler);
-    return () => participants.unobserve(handler);
-  }, [doc]);
-
   // -- Peer state tracking --------------------------------------------------
 
   const updatePeersState = useCallback(() => {
@@ -212,6 +184,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setParticipantStatusMap(statusMap);
     setPeerDisconnectedAtMap(dcAtMap);
   }, [doc]);
+
+  // Track participant keys for connected peers (host only)
+  useEffect(() => {
+    const participants = doc.getMap("participants");
+    const handler = (event: Y.YMapEvent<unknown>) => {
+      if (!isHostRef.current) return;
+      // Find newly added keys
+      const knownKeys = new Set<string>();
+      for (const entry of peersRef.current.values()) {
+        if (entry.participantKey) knownKeys.add(entry.participantKey);
+      }
+      knownKeys.add("host");
+
+      let changed = false;
+      for (const [key, change] of event.changes.keys) {
+        if (change.action === "add" && !knownKeys.has(key)) {
+          // Assign to the most recently connected peer without a participantKey
+          for (const entry of peersRef.current.values()) {
+            if (entry.status === "connected" && !entry.participantKey) {
+              entry.participantKey = key;
+              changed = true;
+              break;
+            }
+          }
+        }
+      }
+      if (changed) updatePeersState();
+    };
+    participants.observe(handler);
+    return () => participants.unobserve(handler);
+  }, [doc, updatePeersState]);
 
   const markDisconnected = useCallback(
     (peerId: string) => {

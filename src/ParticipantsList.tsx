@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, type FormEvent } from "react";
 import { useStore, useYjsSnapshot, type PeerStatus } from "./store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, Minus, Circle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Check, Minus, Circle, Pencil } from "lucide-react";
 
 function ConnectivityDot({ status }: { status: PeerStatus }) {
   if (status === "connected") {
@@ -22,6 +23,56 @@ function disconnectOpacity(disconnectedAt: number | undefined, now: number): num
   return 1 - (elapsed - 25_000) / 5_000;
 }
 
+function EditableName({ name, onSave }: { name: string; onSave: (newName: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(name);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.select();
+  }, [editing]);
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== name) {
+      onSave(trimmed);
+    } else {
+      setDraft(name);
+    }
+    setEditing(false);
+  };
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    commit();
+  };
+
+  if (editing) {
+    return (
+      <form onSubmit={handleSubmit} className="flex items-center gap-1 min-w-0">
+        <Input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          className="h-6 text-sm px-1 py-0 w-24"
+        />
+      </form>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => { setDraft(name); setEditing(true); }}
+      className="flex items-center gap-1 truncate group cursor-pointer"
+    >
+      <span className="truncate">{name}</span>
+      <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+    </button>
+  );
+}
+
 export function ParticipantsList() {
   const { doc, localPeerId, participantStatusMap, peerDisconnectedAtMap } = useStore();
   useYjsSnapshot();
@@ -38,6 +89,12 @@ export function ParticipantsList() {
   const votes = doc.getMap("votes");
   const meta = doc.getMap("meta");
   const revealed = meta.get("revealed") === true;
+
+  const handleNameChange = (newName: string) => {
+    if (!localPeerId) return;
+    participants.set(localPeerId, newName);
+    localStorage.setItem("displayName", newName);
+  };
 
   const entries: { peerId: string; name: string; vote: string | undefined; status: PeerStatus; opacity: number }[] = [];
   participants.forEach((name, peerId) => {
@@ -70,7 +127,11 @@ export function ParticipantsList() {
             >
               <span className="flex items-center gap-2 truncate">
                 <ConnectivityDot status={status} />
-                <span className="truncate">{name}</span>
+                {isCurrentUser ? (
+                  <EditableName name={name} onSave={handleNameChange} />
+                ) : (
+                  <span className="truncate">{name}</span>
+                )}
                 {peerId === "host" && (
                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
                     Host
