@@ -76,3 +76,14 @@
   - `doc.getMap("participants").size` gives total participant count (reactive via `useYjsSnapshot`)
   - Pre-existing TS error in HomePage.tsx (suit type) is unrelated — only that one error in typecheck output
 ---
+
+## 2026-03-06 - US-004
+- What was implemented: Fade-out animation for disconnected participants, removing them after 30s
+- Files changed:
+  - `src/store.tsx` — Added `peerDisconnectedAtMap` state (Map<string, number>) that maps participant keys to their disconnect timestamps. Computed in `updatePeersState()`, exposed via context, reset in `leaveSession()`.
+  - `src/ParticipantsList.tsx` — Added `disconnectOpacity()` helper that computes opacity (1→0 between 25s–30s after disconnect). Added 1s interval timer when disconnected peers exist to drive the fade animation. Applied opacity via inline style + CSS transition on each participant row.
+- **Learnings for future iterations:**
+  - The existing 10s cleanup interval in store.tsx (lines 616-638) already handles Yjs removal at 30s — no changes needed there
+  - For time-based UI animations, a 1s `setInterval` + computed opacity is simpler than CSS-only approaches since React needs to re-render to update the value
+  - The `transition-opacity duration-[5000ms]` Tailwind class provides smooth CSS transition between the discrete opacity steps from the 1s timer
+---
