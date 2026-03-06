@@ -5,6 +5,8 @@
 - Dev server runs on port 3000 via `bun --hot src/index.ts`
 - `reference-similar-sample-app` is a symlinked reference project (excluded from tsconfig)
 - Use `Record<string, any>` for dynamic CLI config parsing in build.ts to avoid TS strict mode issues
+- Store exposes `localPeerId` (string | null) — use it to key votes/participants for the current user
+- Yjs `votes` map: key = localPeerId, value = card string (e.g. "5", "coffee", "?")
 - shadcn/ui Dialog component is at `src/components/ui/dialog.tsx` (uses `@radix-ui/react-dialog`)
 - `RoomPage.tsx` handles join-via-link: auto-joins if displayName in localStorage, else shows Dialog
 - Signaling API route is `/api/signaling?action=<action>` — POST for mutations, GET for poll-answer
@@ -96,4 +98,30 @@
   - Dialog `onOpenChange` prevents closing without entering a name (checks `joinedRef.current`)
   - The store's `connectToSession` handles both host (no existing session) and joiner roles automatically
   - Future stories (US-007, US-008, US-009, US-010) will add card deck, participants list, reveal/clear to RoomPage
+---
+
+## 2026-03-06 - US-007
+- What was implemented: Card deck with Fibonacci-like values and voting via Yjs
+- Files changed:
+  - `src/CardDeck.tsx` - Created with 13 card options (?, coffee, 0, 0.5, 1, 2, 3, 5, 8, 13, 20, 40, 100), select/deselect toggle, Yjs votes map integration
+  - `src/store.tsx` - Added `localPeerId` state to track current user's participant key, exposed via context
+  - `src/RoomPage.tsx` - Integrated CardDeck component, shown when hosting or connected
+- **Learnings for future iterations:**
+  - Store now exposes `localPeerId` — host gets "host", joiners get "joiner-<uuid8>"
+  - Votes are stored in Yjs `votes` map keyed by localPeerId; delete key to deselect
+  - CardDeck reads votes via `doc.getMap("votes").get(localPeerId)` and uses `useYjsSnapshot()` for reactivity
+  - Coffee card uses Lucide `Coffee` icon from `lucide-react`
+---
+
+## 2026-03-06 - US-008
+- What was implemented: Participants list with vote status indicators using shadcn/ui Card
+- Files changed:
+  - `src/ParticipantsList.tsx` - Created with Card container, Check/Minus icons for vote status, revealed vote display, current user highlighting
+  - `src/RoomPage.tsx` - Integrated ParticipantsList below CardDeck
+  - `src/store.tsx` - Added `participantKey` to PeerEntry, Yjs observer to track participant keys, cleanup of Yjs entries on peer disconnect
+- **Learnings for future iterations:**
+  - PeerEntry now has `participantKey` field mapping WebRTC peers to Yjs participant map keys
+  - Host observes Yjs participants map changes to associate new keys with recently connected peers
+  - Stale peer cleanup (30s) also removes participant and vote entries from Yjs maps
+  - `doc.getMap("meta").get("revealed")` controls whether vote values are shown or hidden
 ---

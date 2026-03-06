@@ -113,7 +113,7 @@
         "Other participants see that this user \"has voted\" but NOT the value (until reveal)"
       ],
       "priority": 7,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-008",
@@ -128,7 +128,7 @@
         "The current user's row is visually distinguished (e.g. `font-bold` or `bg-muted` using Tailwind utility classes that match the shadcn/ui theme)"
       ],
       "priority": 8,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-009",
