@@ -64,6 +64,7 @@ interface StoreCtx {
   peerCount: number;
   peers: PeerInfo[];
   participantStatusMap: Map<string, PeerStatus>;
+  peerDisconnectedAtMap: Map<string, number>;
   errorMessage: string | null;
 
   connectToSession: (name: string, displayName: string) => void;
@@ -109,6 +110,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [peerCount, setPeerCount] = useState(0);
   const [peers, setPeers] = useState<PeerInfo[]>([]);
   const [participantStatusMap, setParticipantStatusMap] = useState<Map<string, PeerStatus>>(new Map());
+  const [peerDisconnectedAtMap, setPeerDisconnectedAtMap] = useState<Map<string, number>>(new Map());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [localPeerId, setLocalPeerId] = useState<string | null>(null);
 
@@ -176,11 +178,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const list: PeerInfo[] = [];
     let count = 0;
     const statusMap = new Map<string, PeerStatus>();
+    const dcAtMap = new Map<string, number>();
     for (const entry of peersRef.current.values()) {
       list.push({ peerId: entry.peerId, status: entry.status });
       if (entry.status === "connected") count++;
       if (entry.participantKey) {
         statusMap.set(entry.participantKey, entry.status);
+        if (entry.status === "disconnected" && entry.disconnectedAt) {
+          dcAtMap.set(entry.participantKey, entry.disconnectedAt);
+        }
       }
     }
     // For joiners: map "host" participant key to the host peer status
@@ -198,6 +204,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setPeers(list);
     setPeerCount(count);
     setParticipantStatusMap(statusMap);
+    setPeerDisconnectedAtMap(dcAtMap);
   }, [doc]);
 
   const markDisconnected = useCallback(
@@ -609,6 +616,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setPeerCount(0);
     setPeers([]);
     setParticipantStatusMap(new Map());
+    setPeerDisconnectedAtMap(new Map());
     setErrorMessage(null);
   }, [doc]);
 
@@ -677,6 +685,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         peerCount,
         peers,
         participantStatusMap,
+        peerDisconnectedAtMap,
         errorMessage,
         connectToSession,
         leaveSession,

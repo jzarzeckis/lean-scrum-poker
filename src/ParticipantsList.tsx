@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useStore, useYjsSnapshot, type PeerStatus } from "./store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check, Minus, Circle } from "lucide-react";
@@ -12,23 +13,42 @@ function ConnectivityDot({ status }: { status: PeerStatus }) {
   return <Circle className="h-2.5 w-2.5 fill-gray-400 text-gray-400 shrink-0" />;
 }
 
+/** Compute opacity for a disconnected participant (fade from 1→0 between 25s–30s). */
+function disconnectOpacity(disconnectedAt: number | undefined, now: number): number {
+  if (!disconnectedAt) return 1;
+  const elapsed = now - disconnectedAt;
+  if (elapsed < 25_000) return 1;
+  if (elapsed >= 30_000) return 0;
+  return 1 - (elapsed - 25_000) / 5_000;
+}
+
 export function ParticipantsList() {
-  const { doc, localPeerId, participantStatusMap } = useStore();
+  const { doc, localPeerId, participantStatusMap, peerDisconnectedAtMap } = useStore();
   useYjsSnapshot();
+
+  // Tick every second to drive fade-out animations for disconnected peers
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (peerDisconnectedAtMap.size === 0) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [peerDisconnectedAtMap.size]);
 
   const participants = doc.getMap("participants");
   const votes = doc.getMap("votes");
   const meta = doc.getMap("meta");
   const revealed = meta.get("revealed") === true;
 
-  const entries: { peerId: string; name: string; vote: string | undefined; status: PeerStatus }[] = [];
+  const entries: { peerId: string; name: string; vote: string | undefined; status: PeerStatus; opacity: number }[] = [];
   participants.forEach((name, peerId) => {
     const isLocal = peerId === localPeerId;
+    const status = isLocal ? "connected" : (participantStatusMap.get(peerId) ?? "connecting");
     entries.push({
       peerId,
       name: name as string,
       vote: votes.get(peerId) as string | undefined,
-      status: isLocal ? "connected" : (participantStatusMap.get(peerId) ?? "connecting"),
+      status,
+      opacity: status === "disconnected" ? disconnectOpacity(peerDisconnectedAtMap.get(peerId), now) : 1,
     });
   });
 
@@ -38,14 +58,15 @@ export function ParticipantsList() {
         <CardTitle>Participants</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
-        {entries.map(({ peerId, name, vote, status }) => {
+        {entries.map(({ peerId, name, vote, status, opacity }) => {
           const hasVoted = vote !== undefined;
           const isCurrentUser = peerId === localPeerId;
 
           return (
             <div
               key={peerId}
-              className={`flex items-center justify-between py-1.5 px-2 rounded ${isCurrentUser ? "bg-muted font-bold" : ""}`}
+              className={`flex items-center justify-between py-1.5 px-2 rounded transition-opacity duration-[5000ms] ${isCurrentUser ? "bg-muted font-bold" : ""}`}
+              style={opacity < 1 ? { opacity } : undefined}
             >
               <span className="flex items-center gap-2 truncate">
                 <ConnectivityDot status={status} />
