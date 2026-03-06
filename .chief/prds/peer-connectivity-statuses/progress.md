@@ -120,3 +120,13 @@
   - The `onClose` callback in both flows triggers `markDisconnected()` which feeds into the standard retry loop — no additional wiring needed
   - For host-side, if `ondatachannel` never fires at all, `monitorPcDisconnect` handles it via PC state change to "failed"
 ---
+
+## 2026-03-06 - US-012
+- What was implemented: Added try/catch around SDP operations in `acceptOffer()` and `acceptAnswer()`
+- Files changed:
+  - `src/webrtc.ts` — Wrapped `setRemoteDescription()` and `addIceCandidate()` calls in both `acceptOffer` and `acceptAnswer` with try/catch. On failure: logs a console warning with error details, closes the PC, and re-throws a clean error to trigger the standard retry flow.
+- **Learnings for future iterations:**
+  - `acceptOffer` errors are already caught by the caller in `runHostPolling` (store.tsx) which marks the peer as disconnected and creates the next offer
+  - `acceptAnswer` errors are caught by the joiner's retry loop in `connectToSession` which triggers reconnection
+  - Closing the PC on SDP failure ensures resources are cleaned up before the retry creates a new PC
+---
