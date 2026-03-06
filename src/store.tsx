@@ -590,6 +590,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }).catch(() => {});
     }
 
+    // Clear Yjs doc state
+    const participants = doc.getMap("participants");
+    const votes = doc.getMap("votes");
+    const meta = doc.getMap("meta");
+    doc.transact(() => {
+      participants.forEach((_v, k) => participants.delete(k));
+      votes.forEach((_v, k) => votes.delete(k));
+      meta.forEach((_v, k) => meta.delete(k));
+    });
+
     hostIdRef.current = null;
     sessionNameRef.current = null;
     isHostRef.current = false;
@@ -598,8 +608,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLocalPeerId(null);
     setPeerCount(0);
     setPeers([]);
+    setParticipantStatusMap(new Map());
     setErrorMessage(null);
-  }, []);
+  }, [doc]);
 
   // Auto-cleanup stale disconnected peers every 10s
   useEffect(() => {
