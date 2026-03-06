@@ -25,13 +25,28 @@ function RoomContent() {
     meta.set("revealed", true);
   };
 
+  const handleNewRound = () => {
+    const votes = doc.getMap("votes");
+    doc.transact(() => {
+      votes.forEach((_value, key) => {
+        votes.delete(key);
+      });
+      meta.set("revealed", false);
+    });
+  };
+
   return (
     <>
       <CardDeck />
-      <div className="mt-4 flex justify-center">
+      <div className="mt-4 flex justify-center gap-2">
         <Button onClick={handleReveal} disabled={revealed}>
           Reveal
         </Button>
+        {revealed && (
+          <Button variant="outline" onClick={handleNewRound}>
+            New Round
+          </Button>
+        )}
       </div>
       <div className="mt-6">
         <ParticipantsList />
