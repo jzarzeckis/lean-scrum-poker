@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type FormEvent } from "react";
+import { useState, useEffect, useRef, useCallback, type FormEvent } from "react";
 import { useStore, useYjsSnapshot } from "./store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,34 @@ import {
 } from "@/components/ui/dialog";
 import { CardDeck } from "./CardDeck";
 import { ParticipantsList } from "./ParticipantsList";
+import { Copy, Check, Link } from "lucide-react";
+
+function ShareLink({ slug }: { slug: string }) {
+  const [copied, setCopied] = useState(false);
+  const url = `${window.location.origin}/${slug}`;
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [url]);
+
+  return (
+    <div className="mb-6 mx-auto max-w-md">
+      <div className="flex items-center gap-2 mb-2 justify-center text-sm text-muted-foreground">
+        <Link className="h-4 w-4" />
+        <span>Share this link with your team to join</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Input value={url} readOnly className="font-mono text-sm" />
+        <Button variant="outline" size="icon" onClick={handleCopy} aria-label="Copy link">
+          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function RoomContent() {
   const { doc } = useStore();
@@ -102,7 +130,10 @@ export function RoomPage({ slug }: { slug: string }) {
       </p>
 
       {(sessionState === "hosting" || sessionState === "connected") && (
-        <RoomContent />
+        <>
+          <ShareLink slug={slug} />
+          <RoomContent />
+        </>
       )}
 
       <Dialog open={needsName} onOpenChange={(open) => { if (!open && !joinedRef.current) return; setNeedsName(open); }}>
