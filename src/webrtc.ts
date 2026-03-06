@@ -75,8 +75,14 @@ export async function acceptOffer(
     if (e.candidate) localCandidates.push(e.candidate.toJSON());
   };
 
-  await pc.setRemoteDescription(remoteSdp);
-  for (const c of remoteCandidates) await pc.addIceCandidate(c);
+  try {
+    await pc.setRemoteDescription(remoteSdp);
+    for (const c of remoteCandidates) await pc.addIceCandidate(c);
+  } catch (err) {
+    console.warn("acceptOffer: SDP operation failed", err);
+    pc.close();
+    throw new Error("SDP operation failed in acceptOffer");
+  }
 
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
@@ -98,8 +104,14 @@ export async function acceptAnswer(
   answerString: string,
 ) {
   const { sdp, candidates } = decode(answerString);
-  await pc.setRemoteDescription(sdp);
-  for (const c of candidates) await pc.addIceCandidate(c);
+  try {
+    await pc.setRemoteDescription(sdp);
+    for (const c of candidates) await pc.addIceCandidate(c);
+  } catch (err) {
+    console.warn("acceptAnswer: SDP operation failed", err);
+    pc.close();
+    throw new Error("SDP operation failed in acceptAnswer");
+  }
 }
 
 // ---------------------------------------------------------------------------
