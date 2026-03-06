@@ -6,7 +6,9 @@
       "mcp__plugin_playwright_playwright__browser_snapshot",
       "mcp__plugin_playwright_playwright__browser_fill_form",
       "Bash(bunx tsc:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(brew list:*)",
+      "Bash(rsvg-convert:*)"
     ]
   }
 }
