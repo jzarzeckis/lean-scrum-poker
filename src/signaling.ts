@@ -6,6 +6,8 @@
  * polls for answers.
  */
 
+const MAX_PARTICIPANTS = 12;
+
 interface Session {
   name: string;
   hostId: string;
@@ -15,6 +17,8 @@ interface Session {
   currentOffer: string | null;
   /** Joiner's answer waiting for the host to pick up */
   pendingAnswer: { peerId: string; answer: string } | null;
+  /** Current number of participants as reported by the host */
+  participantCount: number;
 }
 
 const sessions = new Map<string, Session>();
@@ -61,6 +65,10 @@ export function joinSession(
     sessions.delete(name);
     return { ok: true, role: "host" };
   }
+  // Room is full
+  if (existing.participantCount >= MAX_PARTICIPANTS) {
+    return { ok: false, error: "Room is full" };
+  }
   // Session exists, has an offer ready
   if (existing.currentOffer) {
     const offer = existing.currentOffer;
@@ -76,6 +84,7 @@ export function createSession(
   name: string,
   hostId: string,
   offer: string,
+  participantCount = 1,
 ): { ok: true } | { ok: false; error: string } {
   const existing = sessions.get(name);
   if (existing) {
@@ -90,6 +99,7 @@ export function createSession(
     lastHostPoll: Date.now(),
     currentOffer: offer,
     pendingAnswer: null,
+    participantCount,
   });
   return { ok: true };
 }
@@ -110,6 +120,7 @@ export function submitAnswer(
 export function pollAnswer(
   name: string,
   hostId: string,
+  participantCount?: number,
 ):
   | { ok: true; peerId: string; answer: string }
   | { ok: true; peerId: null }
@@ -119,6 +130,7 @@ export function pollAnswer(
   if (session.hostId !== hostId) return { ok: false, error: "Not the host" };
 
   session.lastHostPoll = Date.now();
+  if (participantCount !== undefined) session.participantCount = participantCount;
 
   if (session.pendingAnswer) {
     const { peerId, answer } = session.pendingAnswer;
@@ -133,12 +145,14 @@ export function replaceOffer(
   name: string,
   hostId: string,
   offer: string,
+  participantCount?: number,
 ): { ok: true } | { ok: false; error: string } {
   const session = sessions.get(name);
   if (!session) return { ok: false, error: "Session not found" };
   if (session.hostId !== hostId) return { ok: false, error: "Not the host" };
 
   session.currentOffer = offer;
+  if (participantCount !== undefined) session.participantCount = participantCount;
   return { ok: true };
 }
 

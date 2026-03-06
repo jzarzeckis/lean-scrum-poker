@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { CardDeck } from "./CardDeck";
 import { ParticipantsList } from "./ParticipantsList";
-import { Copy, Check, Link } from "lucide-react";
+import { Copy, Check, Link, LogOut } from "lucide-react";
 
 function ShareLink({ slug }: { slug: string }) {
   const [copied, setCopied] = useState(false);
@@ -84,7 +84,7 @@ function RoomContent() {
 }
 
 export function RoomPage({ slug }: { slug: string }) {
-  const { connectToSession, sessionState } = useStore();
+  const { connectToSession, leaveSession, sessionState, doc, peerCount, errorMessage } = useStore();
   useYjsSnapshot();
 
   const [needsName, setNeedsName] = useState(false);
@@ -103,6 +103,13 @@ export function RoomPage({ slug }: { slug: string }) {
     }
   }, [slug, connectToSession]);
 
+  const handleLeave = useCallback(() => {
+    leaveSession();
+    joinedRef.current = false;
+    window.history.pushState(null, "", "/");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, [leaveSession]);
+
   const handleNameSubmit = (e: FormEvent) => {
     e.preventDefault();
     const trimmed = displayName.trim();
@@ -117,17 +124,32 @@ export function RoomPage({ slug }: { slug: string }) {
   return (
     <div className="container mx-auto p-8 text-center">
       <h1 className="text-3xl font-bold mb-4">Room: {slug}</h1>
-      <p className="text-muted-foreground mb-6">
-        {sessionState === "hosting"
-          ? "Hosting — waiting for participants..."
-          : sessionState === "connected"
-            ? "Connected"
+      <div className="flex items-center justify-center gap-3 mb-6">
+        <p className="text-muted-foreground">
+          {sessionState === "hosting" || sessionState === "connected"
+            ? (() => {
+                const totalParticipants = doc.getMap("participants").size;
+                const connectedCount = sessionState === "hosting"
+                  ? peerCount + 1 // +1 for host (self)
+                  : totalParticipants; // joiner sees all via host
+                return `${sessionState === "hosting" ? "Hosting" : "Connected"} — ${connectedCount}/${totalParticipants} connected`;
+              })()
             : sessionState === "connecting"
               ? "Connecting..."
               : sessionState === "error"
-                ? "Connection error"
+                ? errorMessage || "Connection error"
                 : ""}
-      </p>
+        </p>
+        {sessionState === "connecting" && (
+          <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+        )}
+        {(sessionState === "hosting" || sessionState === "connected") && (
+          <Button variant="ghost" size="sm" onClick={handleLeave} className="text-muted-foreground">
+            <LogOut className="h-4 w-4 mr-1" />
+            Leave
+          </Button>
+        )}
+      </div>
 
       {(sessionState === "hosting" || sessionState === "connected") && (
         <>

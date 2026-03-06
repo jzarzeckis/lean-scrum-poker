@@ -25,6 +25,12 @@ import * as Y from "yjs";
 import { createOffer, acceptOffer, acceptAnswer } from "./webrtc";
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const MAX_PARTICIPANTS = 12;
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -63,6 +69,8 @@ interface StoreCtx {
   localPeerId: string | null;
   peerCount: number;
   peers: PeerInfo[];
+  participantStatusMap: Map<string, PeerStatus>;
+  peerDisconnectedAtMap: Map<string, number>;
   errorMessage: string | null;
 
   connectToSession: (name: string, displayName: string) => void;
@@ -107,6 +115,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [sessionName, setSessionName] = useState<string | null>(null);
   const [peerCount, setPeerCount] = useState(0);
   const [peers, setPeers] = useState<PeerInfo[]>([]);
+  const [participantStatusMap, setParticipantStatusMap] = useState<Map<string, PeerStatus>>(new Map());
+  const [peerDisconnectedAtMap, setPeerDisconnectedAtMap] = useState<Map<string, number>>(new Map());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [localPeerId, setLocalPeerId] = useState<string | null>(null);
 
@@ -140,6 +150,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => doc.off("update", handler);
   }, [doc, broadcastUpdate]);
 
+  // -- Peer state tracking --------------------------------------------------
+
+  const updatePeersState = useCallback(() => {
+    const list: PeerInfo[] = [];
+    let count = 0;
+    const statusMap = new Map<string, PeerStatus>();
+    const dcAtMap = new Map<string, number>();
+    for (const entry of peersRef.current.values()) {
+      list.push({ peerId: entry.peerId, status: entry.status });
+      if (entry.status === "connected") count++;
+      if (entry.participantKey) {
+        statusMap.set(entry.participantKey, entry.status);
+        if (entry.status === "disconnected" && entry.disconnectedAt) {
+          dcAtMap.set(entry.participantKey, entry.disconnectedAt);
+        }
+      }
+    }
+    // For joiners: map "host" participant key to the host peer status
+    const hostEntry = peersRef.current.get("host");
+    if (hostEntry) {
+      statusMap.set("host", hostEntry.status);
+      // Other participants seen through host inherit host's connection status
+      const participants = doc.getMap("participants");
+      participants.forEach((_name, key) => {
+        if (!statusMap.has(key)) {
+          statusMap.set(key, hostEntry.status === "connected" ? "connected" : "disconnected");
+        }
+      });
+    }
+    setPeers(list);
+    setPeerCount(count);
+    setParticipantStatusMap(statusMap);
+    setPeerDisconnectedAtMap(dcAtMap);
+  }, [doc]);
+
   // Track participant keys for connected peers (host only)
   useEffect(() => {
     const participants = doc.getMap("participants");
@@ -152,34 +197,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       knownKeys.add("host");
 
+      let changed = false;
       for (const [key, change] of event.changes.keys) {
         if (change.action === "add" && !knownKeys.has(key)) {
           // Assign to the most recently connected peer without a participantKey
           for (const entry of peersRef.current.values()) {
             if (entry.status === "connected" && !entry.participantKey) {
               entry.participantKey = key;
+              changed = true;
               break;
             }
           }
         }
       }
+      if (changed) updatePeersState();
     };
     participants.observe(handler);
     return () => participants.unobserve(handler);
-  }, [doc]);
-
-  // -- Peer state tracking --------------------------------------------------
-
-  const updatePeersState = useCallback(() => {
-    const list: PeerInfo[] = [];
-    let count = 0;
-    for (const entry of peersRef.current.values()) {
-      list.push({ peerId: entry.peerId, status: entry.status });
-      if (entry.status === "connected") count++;
-    }
-    setPeers(list);
-    setPeerCount(count);
-  }, []);
+  }, [doc, updatePeersState]);
 
   const markDisconnected = useCallback(
     (peerId: string) => {
@@ -277,13 +312,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       monitorPcDisconnect(pc, peerId);
 
       // Post offer to server
+      const participantCount = doc.getMap("participants").size;
       const isFirst = !hostIdRef.current;
       if (isFirst) {
         hostIdRef.current = hostId;
         const res = await fetch("/api/signaling?action=create-session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, hostId, offer: offerString }),
+          body: JSON.stringify({ name, hostId, offer: offerString, participantCount }),
         });
         const data = await res.json();
         if (!data.ok) {
@@ -296,7 +332,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await fetch("/api/signaling?action=replace-offer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session: name, hostId, offer: offerString }),
+          body: JSON.stringify({ session: name, hostId, offer: offerString, participantCount }),
         });
       }
 
@@ -315,28 +351,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       firstPc: RTCPeerConnection,
       signal: AbortSignal,
     ) => {
-      let currentPeerId = firstPeerId;
-      let currentPc = firstPc;
+      let currentPeerId: string | null = firstPeerId;
+      let currentPc: RTCPeerConnection | null = firstPc;
 
       while (!signal.aborted) {
         try {
+          const participantCount = doc.getMap("participants").size;
+
+          // If no offer is pending and room has capacity, create one
+          if (!currentPc && participantCount < MAX_PARTICIPANTS) {
+            const next = await createAndPostOffer(name, hostId);
+            if (next) {
+              currentPeerId = next.peerId;
+              currentPc = next.pc;
+            }
+          }
+
           const r = await fetch(
-            `/api/signaling?action=poll-answer&session=${encodeURIComponent(name)}&hostId=${encodeURIComponent(hostId)}`,
+            `/api/signaling?action=poll-answer&session=${encodeURIComponent(name)}&hostId=${encodeURIComponent(hostId)}&participantCount=${participantCount}`,
             { signal },
           );
           const d = await r.json();
 
           if (d.ok && d.peerId && d.answer) {
-            // Complete handshake
-            const peer = peersRef.current.get(currentPeerId);
-            if (peer && peer.pc === currentPc) {
-              await acceptAnswer(currentPc, d.answer);
+            // Complete handshake — wrap in try/catch so a failed answer
+            // doesn't prevent creating the next offer (race condition fix)
+            if (currentPeerId && currentPc) {
+              const peer = peersRef.current.get(currentPeerId);
+              if (peer && peer.pc === currentPc) {
+                try {
+                  await acceptAnswer(currentPc, d.answer);
+                } catch (err) {
+                  console.warn("Failed to accept answer:", err);
+                  markDisconnected(currentPeerId);
+                }
+              }
             }
-            // Create next offer for the next joiner
-            const next = await createAndPostOffer(name, hostId);
-            if (next) {
-              currentPeerId = next.peerId;
-              currentPc = next.pc;
+            // Create next offer if room has capacity
+            const newCount = doc.getMap("participants").size;
+            if (newCount < MAX_PARTICIPANTS) {
+              const next = await createAndPostOffer(name, hostId);
+              if (next) {
+                currentPeerId = next.peerId;
+                currentPc = next.pc;
+              } else {
+                currentPeerId = null;
+                currentPc = null;
+              }
+            } else {
+              currentPeerId = null;
+              currentPc = null;
             }
           } else {
             // No answer yet — wait before polling again
@@ -349,7 +413,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [createAndPostOffer],
+    [doc, createAndPostOffer, markDisconnected],
   );
 
   // -- Connect to session ---------------------------------------------------
@@ -374,9 +438,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const run = async () => {
         while (!ac.signal.aborted) {
           try {
-            // Reset Yjs doc on first attempt / retry
+            // Reset Yjs doc state on retry to prevent stale CRDT data merging
             const participants = doc.getMap("participants");
+            const votes = doc.getMap("votes");
             const meta = doc.getMap("meta");
+            doc.transact(() => {
+              participants.forEach((_v, k) => participants.delete(k));
+              votes.forEach((_v, k) => votes.delete(k));
+              meta.forEach((_v, k) => meta.delete(k));
+            });
 
             // Clean up old connections on retry
             for (const peer of peersRef.current.values()) peer.pc.close();
@@ -393,6 +463,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             const data = await res.json();
 
             if (!data.ok) {
+              if (data.error === "Room is full") {
+                setSessionState("error");
+                setErrorMessage("Room is full (max 12 participants)");
+                return;
+              }
               throw new Error(data.error || "Session busy");
             }
 
@@ -436,7 +511,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               (msg: Uint8Array) => Y.applyUpdate(doc, msg, "remote"),
               () => {
                 const hostEntry = peersRef.current.get("host");
-                if (hostEntry) hostEntry.status = "connected";
+                if (hostEntry) {
+                  hostEntry.status = "connected";
+                  // Send our full state to the host (includes participant key
+                  // that was set before the DC was open and thus never broadcast)
+                  if (hostEntry.dc && hostEntry.dc.readyState === "open") {
+                    hostEntry.dc.send(
+                      Y.encodeStateAsUpdate(doc) as Uint8Array<ArrayBuffer>,
+                    );
+                  }
+                }
                 setSessionState("connected");
                 updatePeersState();
               },
@@ -475,6 +559,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
             // Wait for disconnect, then retry
             await new Promise<void>((resolve) => {
+              let resolved = false;
+              const done = () => { if (!resolved) { resolved = true; resolve(); } };
               const checkDisconnect = () => {
                 const state = result.pc.connectionState;
                 if (state === "disconnected" || state === "failed") {
@@ -482,7 +568,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                     "connectionstatechange",
                     checkDisconnect,
                   );
-                  resolve();
+                  done();
                 }
               };
               result.pc.addEventListener(
@@ -490,10 +576,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 checkDisconnect,
               );
               result.dc.then((dc) => {
-                dc.addEventListener("close", () => resolve());
+                dc.addEventListener("close", () => done());
               });
+              // Detect network loss instantly via offline event
+              const offlineHandler = () => done();
+              window.addEventListener("offline", offlineHandler, { once: true });
               // Also resolve if aborted
-              ac.signal.addEventListener("abort", () => resolve());
+              ac.signal.addEventListener("abort", () => {
+                window.removeEventListener("offline", offlineHandler);
+                done();
+              });
             });
 
             if (ac.signal.aborted) return;
@@ -556,6 +648,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }).catch(() => {});
     }
 
+    // Clear Yjs doc state
+    const participants = doc.getMap("participants");
+    const votes = doc.getMap("votes");
+    const meta = doc.getMap("meta");
+    doc.transact(() => {
+      participants.forEach((_v, k) => participants.delete(k));
+      votes.forEach((_v, k) => votes.delete(k));
+      meta.forEach((_v, k) => meta.delete(k));
+    });
+
     hostIdRef.current = null;
     sessionNameRef.current = null;
     isHostRef.current = false;
@@ -564,8 +666,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLocalPeerId(null);
     setPeerCount(0);
     setPeers([]);
+    setParticipantStatusMap(new Map());
+    setPeerDisconnectedAtMap(new Map());
     setErrorMessage(null);
-  }, []);
+  }, [doc]);
 
   // Auto-cleanup stale disconnected peers every 10s
   useEffect(() => {
@@ -592,6 +696,61 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [doc, updatePeersState]);
 
+  // Detect network loss/recovery via browser online/offline events
+  useEffect(() => {
+    const onOffline = () => {
+      // Immediately mark all peers as disconnected for faster UI feedback
+      for (const [pid, entry] of peersRef.current) {
+        if (entry.status !== "disconnected") {
+          entry.status = "disconnected";
+          entry.disconnectedAt = Date.now();
+        }
+      }
+      updatePeersState();
+      // For joiners, transition to "connecting" state
+      if (!isHostRef.current && peersRef.current.has("host")) {
+        setSessionState("connecting");
+      }
+    };
+    const onOnline = () => {
+      // Network recovered — close stale PCs so the retry loop picks up faster
+      for (const entry of peersRef.current.values()) {
+        if (entry.status === "disconnected") {
+          try { entry.pc.close(); } catch {}
+        }
+      }
+    };
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", onOnline);
+    return () => {
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [updatePeersState]);
+
+  // Graceful cleanup on tab close / refresh (best-effort via sendBeacon)
+  useEffect(() => {
+    const handler = () => {
+      if (isHostRef.current && sessionNameRef.current && hostIdRef.current) {
+        // Use sendBeacon for reliable delivery during unload
+        const payload = JSON.stringify({
+          name: sessionNameRef.current,
+          hostId: hostIdRef.current,
+        });
+        navigator.sendBeacon(
+          "/api/signaling?action=delete-session",
+          new Blob([payload], { type: "application/json" }),
+        );
+      }
+      // Close all peer connections
+      for (const peer of peersRef.current.values()) {
+        try { peer.pc.close(); } catch {}
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -608,6 +767,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         localPeerId,
         peerCount,
         peers,
+        participantStatusMap,
+        peerDisconnectedAtMap,
         errorMessage,
         connectToSession,
         leaveSession,

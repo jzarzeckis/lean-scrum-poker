@@ -4,7 +4,9 @@
       "mcp__plugin_playwright_playwright",
       "mcp__plugin_playwright_playwright__browser_click",
       "mcp__plugin_playwright_playwright__browser_snapshot",
-      "mcp__plugin_playwright_playwright__browser_fill_form"
+      "mcp__plugin_playwright_playwright__browser_fill_form",
+      "Bash(bunx tsc:*)",
+      "Bash(curl:*)"
     ]
   }
 }

@@ -31,7 +31,7 @@ export async function createOffer(
 
   const dc = pc.createDataChannel("yjs", { ordered: true });
   dc.binaryType = "arraybuffer";
-  setupDataChannel(dc, onMessage, onOpen, onClose);
+  setupDataChannel(dc, onMessage, onOpen, onClose, pc);
 
   pc.onicecandidate = (e) => {
     if (e.candidate) candidates.push(e.candidate.toJSON());
@@ -75,8 +75,14 @@ export async function acceptOffer(
     if (e.candidate) localCandidates.push(e.candidate.toJSON());
   };
 
-  await pc.setRemoteDescription(remoteSdp);
-  for (const c of remoteCandidates) await pc.addIceCandidate(c);
+  try {
+    await pc.setRemoteDescription(remoteSdp);
+    for (const c of remoteCandidates) await pc.addIceCandidate(c);
+  } catch (err) {
+    console.warn("acceptOffer: SDP operation failed", err);
+    pc.close();
+    throw new Error("SDP operation failed in acceptOffer");
+  }
 
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
@@ -98,8 +104,14 @@ export async function acceptAnswer(
   answerString: string,
 ) {
   const { sdp, candidates } = decode(answerString);
-  await pc.setRemoteDescription(sdp);
-  for (const c of candidates) await pc.addIceCandidate(c);
+  try {
+    await pc.setRemoteDescription(sdp);
+    for (const c of candidates) await pc.addIceCandidate(c);
+  } catch (err) {
+    console.warn("acceptAnswer: SDP operation failed", err);
+    pc.close();
+    throw new Error("SDP operation failed in acceptAnswer");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -128,9 +140,47 @@ function setupDataChannel(
   onMessage: OnBinaryMessage,
   onOpen: OnOpen,
   onClose: OnClose,
+  pc?: RTCPeerConnection,
 ) {
-  dc.onopen = () => onOpen();
-  dc.onclose = () => onClose();
+  let opened = false;
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+
+  const startTimeout = () => {
+    timeout = setTimeout(() => {
+      if (!opened) {
+        console.warn("Data channel open timeout (10s)");
+        dc.close();
+        onClose();
+      }
+    }, 10_000);
+  };
+
+  // If a PC is provided and it's still in "new" state (pre-created offer),
+  // defer the timeout until ICE negotiation actually starts.
+  if (pc && pc.connectionState === "new") {
+    const handler = () => {
+      const state = pc.connectionState;
+      if (state === "connecting" || state === "connected") {
+        startTimeout();
+        pc.removeEventListener("connectionstatechange", handler);
+      } else if (state === "failed" || state === "closed") {
+        pc.removeEventListener("connectionstatechange", handler);
+      }
+    };
+    pc.addEventListener("connectionstatechange", handler);
+  } else {
+    startTimeout();
+  }
+
+  dc.onopen = () => {
+    opened = true;
+    if (timeout) clearTimeout(timeout);
+    onOpen();
+  };
+  dc.onclose = () => {
+    if (timeout) clearTimeout(timeout);
+    onClose();
+  };
   dc.onmessage = (e) => {
     if (e.data instanceof ArrayBuffer) {
       onMessage(new Uint8Array(e.data));
