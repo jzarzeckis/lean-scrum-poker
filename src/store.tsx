@@ -353,12 +353,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const d = await r.json();
 
           if (d.ok && d.peerId && d.answer) {
-            // Complete handshake
+            // Complete handshake — wrap in try/catch so a failed answer
+            // doesn't prevent creating the next offer (race condition fix)
             const peer = peersRef.current.get(currentPeerId);
             if (peer && peer.pc === currentPc) {
-              await acceptAnswer(currentPc, d.answer);
+              try {
+                await acceptAnswer(currentPc, d.answer);
+              } catch (err) {
+                console.warn("Failed to accept answer:", err);
+                markDisconnected(currentPeerId);
+              }
             }
-            // Create next offer for the next joiner
+            // Always create next offer for the next joiner
             const next = await createAndPostOffer(name, hostId);
             if (next) {
               currentPeerId = next.peerId;
