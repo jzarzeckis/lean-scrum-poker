@@ -63,6 +63,7 @@ interface StoreCtx {
   localPeerId: string | null;
   peerCount: number;
   peers: PeerInfo[];
+  participantStatusMap: Map<string, PeerStatus>;
   errorMessage: string | null;
 
   connectToSession: (name: string, displayName: string) => void;
@@ -107,6 +108,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [sessionName, setSessionName] = useState<string | null>(null);
   const [peerCount, setPeerCount] = useState(0);
   const [peers, setPeers] = useState<PeerInfo[]>([]);
+  const [participantStatusMap, setParticipantStatusMap] = useState<Map<string, PeerStatus>>(new Map());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [localPeerId, setLocalPeerId] = useState<string | null>(null);
 
@@ -173,13 +175,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const updatePeersState = useCallback(() => {
     const list: PeerInfo[] = [];
     let count = 0;
+    const statusMap = new Map<string, PeerStatus>();
     for (const entry of peersRef.current.values()) {
       list.push({ peerId: entry.peerId, status: entry.status });
       if (entry.status === "connected") count++;
+      if (entry.participantKey) {
+        statusMap.set(entry.participantKey, entry.status);
+      }
+    }
+    // For joiners: map "host" participant key to the host peer status
+    const hostEntry = peersRef.current.get("host");
+    if (hostEntry) {
+      statusMap.set("host", hostEntry.status);
+      // Other participants seen through host inherit host's connection status
+      const participants = doc.getMap("participants");
+      participants.forEach((_name, key) => {
+        if (!statusMap.has(key)) {
+          statusMap.set(key, hostEntry.status === "connected" ? "connected" : "disconnected");
+        }
+      });
     }
     setPeers(list);
     setPeerCount(count);
-  }, []);
+    setParticipantStatusMap(statusMap);
+  }, [doc]);
 
   const markDisconnected = useCallback(
     (peerId: string) => {
@@ -608,6 +627,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         localPeerId,
         peerCount,
         peers,
+        participantStatusMap,
         errorMessage,
         connectToSession,
         leaveSession,

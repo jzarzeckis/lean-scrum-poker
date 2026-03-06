@@ -1,9 +1,19 @@
-import { useStore, useYjsSnapshot } from "./store";
+import { useStore, useYjsSnapshot, type PeerStatus } from "./store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, Minus } from "lucide-react";
+import { Check, Minus, Circle } from "lucide-react";
+
+function ConnectivityDot({ status }: { status: PeerStatus }) {
+  if (status === "connected") {
+    return <Circle className="h-2.5 w-2.5 fill-emerald-500 text-emerald-500 shrink-0" />;
+  }
+  if (status === "connecting") {
+    return <Circle className="h-2.5 w-2.5 fill-amber-500 text-amber-500 animate-pulse shrink-0" />;
+  }
+  return <Circle className="h-2.5 w-2.5 fill-gray-400 text-gray-400 shrink-0" />;
+}
 
 export function ParticipantsList() {
-  const { doc, localPeerId } = useStore();
+  const { doc, localPeerId, participantStatusMap } = useStore();
   useYjsSnapshot();
 
   const participants = doc.getMap("participants");
@@ -11,12 +21,14 @@ export function ParticipantsList() {
   const meta = doc.getMap("meta");
   const revealed = meta.get("revealed") === true;
 
-  const entries: { peerId: string; name: string; vote: string | undefined }[] = [];
+  const entries: { peerId: string; name: string; vote: string | undefined; status: PeerStatus }[] = [];
   participants.forEach((name, peerId) => {
+    const isLocal = peerId === localPeerId;
     entries.push({
       peerId,
       name: name as string,
       vote: votes.get(peerId) as string | undefined,
+      status: isLocal ? "connected" : (participantStatusMap.get(peerId) ?? "connecting"),
     });
   });
 
@@ -26,7 +38,7 @@ export function ParticipantsList() {
         <CardTitle>Participants</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
-        {entries.map(({ peerId, name, vote }) => {
+        {entries.map(({ peerId, name, vote, status }) => {
           const hasVoted = vote !== undefined;
           const isCurrentUser = peerId === localPeerId;
 
@@ -35,7 +47,10 @@ export function ParticipantsList() {
               key={peerId}
               className={`flex items-center justify-between py-1.5 px-2 rounded ${isCurrentUser ? "bg-muted font-bold" : ""}`}
             >
-              <span className="truncate">{name}</span>
+              <span className="flex items-center gap-2 truncate">
+                <ConnectivityDot status={status} />
+                <span className="truncate">{name}</span>
+              </span>
               <span className="flex items-center gap-2">
                 <span
                   className="inline-flex items-center justify-center w-8 h-8"
