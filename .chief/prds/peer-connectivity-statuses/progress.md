@@ -3,6 +3,7 @@
 - `beforeunload` + `sendBeacon` for best-effort session cleanup on tab close/refresh
 - Yjs participants map keys: "host" for the host, "joiner-xxxx" for joiners
 - PeerEntry.participantKey maps internal peer IDs to Yjs participant keys (host only tracks this)
+- Joiner MUST send `Y.encodeStateAsUpdate(doc)` to host on DC open — Yjs updates set before the DC opens are silently dropped (peersRef is empty)
 - For joiners, the only peer connection is to "host" — other participants' status mirrors host connection
 - Store exposes `participantStatusMap: Map<string, PeerStatus>` for UI to look up status per participant key
 - The local user (localPeerId) is always "connected" — no need to look up in the map
@@ -40,4 +41,15 @@
   - Yjs CRDT merge semantics mean you MUST clear maps before reconnecting, otherwise old entries persist even when the new host sends fresh state
   - The signaling server's `STALE_HOST_THRESHOLD_MS` (10s) acts as a fallback when `beforeunload` beacon fails — session auto-expires and can be taken over
   - `localPeerId` gets a new key on each retry (new `joiner-xxxx` or `"host"`), which is correct for fresh reconnection
+---
+
+## 2026-03-06 - US-006
+- What was implemented: Fixed joiner refresh leaving ghost participants by ensuring the host knows about joiner's participant key
+- Files changed:
+  - `src/store.tsx` — Added `Y.encodeStateAsUpdate(doc)` send from joiner to host in the `onOpen` callback, so the host receives the joiner's participant key that was set before the data channel was open
+- **Learnings for future iterations:**
+  - Root cause: joiner sets `participants.set(localKey, displayName)` BEFORE any peer entry exists in `peersRef`, so the Yjs `doc.on("update")` handler broadcasts to zero peers — the update is silently lost
+  - The host's Yjs observer assigns `participantKey` to peer entries when new keys appear in the participants map. Without the joiner's state sync, `participantKey` was never set, and the 30s cleanup couldn't delete the ghost from Yjs
+  - Promise `.then` microtasks (DC assignment) run before `onopen` macrotasks, so `hostEntry.dc` is guaranteed to be set when `onOpen` fires
+  - The existing 10s cleanup interval + 30s threshold in store.tsx already handles ghost removal — it just needed `participantKey` to be set correctly
 ---
