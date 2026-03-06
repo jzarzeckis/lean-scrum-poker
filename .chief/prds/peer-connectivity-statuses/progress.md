@@ -110,3 +110,13 @@
   - Race condition: if `acceptAnswer` throws in `runHostPolling`, the outer catch prevented `createAndPostOffer` from running, leaving the host stuck with no offer for future joiners
   - Signaling server (`src/signaling.ts`) returns "Session busy" if no offer is available — joiner retry loop handles this but with a 3s delay
 ---
+
+## 2026-03-06 - US-011
+- What was implemented: 10-second timeout on data channel open in `setupDataChannel`
+- Files changed:
+  - `src/webrtc.ts` — Added timeout logic in `setupDataChannel`: starts a 10s timer when the DC is set up; if `onopen` hasn't fired by then, closes the DC and calls `onClose()` to trigger disconnect/retry flow. Timer is cleared on successful open or close.
+- **Learnings for future iterations:**
+  - `setupDataChannel` is used for both host-side (incoming DC via `ondatachannel`) and joiner-side (outgoing DC via `createDataChannel`), so the timeout applies to both sides automatically
+  - The `onClose` callback in both flows triggers `markDisconnected()` which feeds into the standard retry loop — no additional wiring needed
+  - For host-side, if `ondatachannel` never fires at all, `monitorPcDisconnect` handles it via PC state change to "failed"
+---
