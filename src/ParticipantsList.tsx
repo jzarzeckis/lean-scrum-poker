@@ -50,6 +50,11 @@ export function ParticipantsList() {
               <span className="flex items-center gap-2 truncate">
                 <ConnectivityDot status={status} />
                 <span className="truncate">{name}</span>
+                {peerId === "host" && (
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                    Host
+                  </span>
+                )}
               </span>
               <span className="flex items-center gap-2">
                 <span
