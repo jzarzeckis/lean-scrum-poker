@@ -129,8 +129,26 @@ function setupDataChannel(
   onOpen: OnOpen,
   onClose: OnClose,
 ) {
-  dc.onopen = () => onOpen();
-  dc.onclose = () => onClose();
+  let opened = false;
+
+  // Timeout: if data channel doesn't open within 10s, treat as failed
+  const timeout = setTimeout(() => {
+    if (!opened) {
+      console.warn("Data channel open timeout (10s)");
+      dc.close();
+      onClose();
+    }
+  }, 10_000);
+
+  dc.onopen = () => {
+    opened = true;
+    clearTimeout(timeout);
+    onOpen();
+  };
+  dc.onclose = () => {
+    clearTimeout(timeout);
+    onClose();
+  };
   dc.onmessage = (e) => {
     if (e.data instanceof ArrayBuffer) {
       onMessage(new Uint8Array(e.data));
