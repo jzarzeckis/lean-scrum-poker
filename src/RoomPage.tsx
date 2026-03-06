@@ -14,6 +14,32 @@ import {
 import { CardDeck } from "./CardDeck";
 import { ParticipantsList } from "./ParticipantsList";
 
+function RoomContent() {
+  const { doc } = useStore();
+  useYjsSnapshot();
+
+  const meta = doc.getMap("meta");
+  const revealed = meta.get("revealed") === true;
+
+  const handleReveal = () => {
+    meta.set("revealed", true);
+  };
+
+  return (
+    <>
+      <CardDeck />
+      <div className="mt-4 flex justify-center">
+        <Button onClick={handleReveal} disabled={revealed}>
+          Reveal
+        </Button>
+      </div>
+      <div className="mt-6">
+        <ParticipantsList />
+      </div>
+    </>
+  );
+}
+
 export function RoomPage({ slug }: { slug: string }) {
   const { connectToSession, sessionState } = useStore();
   useYjsSnapshot();
@@ -61,12 +87,7 @@ export function RoomPage({ slug }: { slug: string }) {
       </p>
 
       {(sessionState === "hosting" || sessionState === "connected") && (
-        <>
-          <CardDeck />
-          <div className="mt-6">
-            <ParticipantsList />
-          </div>
-        </>
+        <RoomContent />
       )}
 
       <Dialog open={needsName} onOpenChange={(open) => { if (!open && !joinedRef.current) return; setNeedsName(open); }}>

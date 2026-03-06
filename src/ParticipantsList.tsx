@@ -37,15 +37,46 @@ export function ParticipantsList() {
             >
               <span className="truncate">{name}</span>
               <span className="flex items-center gap-2">
-                {revealed && hasVoted ? (
-                  <span className="text-sm font-medium">{vote}</span>
-                ) : revealed && !hasVoted ? (
-                  <span className="text-sm text-muted-foreground">-</span>
-                ) : hasVoted ? (
-                  <Check className="h-4 w-4 text-green-600" />
-                ) : (
-                  <Minus className="h-4 w-4 text-muted-foreground" />
-                )}
+                <span
+                  className="inline-flex items-center justify-center w-8 h-8"
+                  style={{
+                    perspective: "200px",
+                  }}
+                >
+                  <span
+                    className="inline-flex items-center justify-center w-full h-full transition-transform duration-300"
+                    style={{
+                      transformStyle: "preserve-3d",
+                      transform: revealed ? "rotateY(180deg)" : "rotateY(0deg)",
+                    }}
+                  >
+                    {/* Front face (hidden status) */}
+                    <span
+                      className="absolute inset-0 flex items-center justify-center"
+                      style={{ backfaceVisibility: "hidden" }}
+                    >
+                      {hasVoted ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Minus className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </span>
+                    {/* Back face (revealed value) */}
+                    <span
+                      className="absolute inset-0 flex items-center justify-center"
+                      style={{
+                        backfaceVisibility: "hidden",
+                        transform: "rotateY(180deg)",
+                      }}
+                    >
+                      {hasVoted ? (
+                        <span className="text-sm font-medium">{vote}</span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">-</span>
+                      )}
+                    </span>
+                  </span>
+                </span>
               </span>
             </div>
           );
