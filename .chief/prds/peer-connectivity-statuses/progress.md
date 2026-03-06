@@ -1,4 +1,5 @@
 ## Codebase Patterns
+- MAX_PARTICIPANTS = 12 constant defined in both signaling.ts and store.tsx
 - MUST clear Yjs maps (participants, votes, meta) before reconnecting — CRDT merge won't replace old data
 - `beforeunload` + `sendBeacon` for best-effort session cleanup on tab close/refresh
 - Yjs participants map keys: "host" for the host, "joiner-xxxx" for joiners
@@ -129,4 +130,17 @@
   - `acceptOffer` errors are already caught by the caller in `runHostPolling` (store.tsx) which marks the peer as disconnected and creates the next offer
   - `acceptAnswer` errors are caught by the joiner's retry loop in `connectToSession` which triggers reconnection
   - Closing the PC on SDP failure ensures resources are cleaned up before the retry creates a new PC
+---
+
+## 2026-03-06 - US-010
+- What was implemented: Room capped at 12 participants with server-side and client-side enforcement
+- Files changed:
+  - `src/signaling.ts` — Added `MAX_PARTICIPANTS` constant (12) and `participantCount` field to `Session`. `joinSession` returns "Room is full" when count >= 12. `createSession`, `replaceOffer`, and `pollAnswer` accept `participantCount` param.
+  - `src/handleSignaling.ts` — Updated `create-session`, `replace-offer`, and `poll-answer` handlers to pass `participantCount` through to signaling functions.
+  - `src/store.tsx` — Added `MAX_PARTICIPANTS` constant. `createAndPostOffer` sends `doc.getMap("participants").size` as `participantCount`. `runHostPolling` skips offer creation when at capacity (sets `currentPc = null`), resumes when count drops below 12. Joiner gets "Room is full" error and transitions to error state instead of retrying.
+- **Learnings for future iterations:**
+  - The host polling loop tracks `currentPc`/`currentPeerId` for the pending offer — setting both to `null` effectively pauses new joiner acceptance
+  - When a stale peer is cleaned up (30s interval), the polling loop's next iteration sees the reduced count and creates a new offer automatically
+  - `pollAnswer` is called every ~1s by the host, so updating `participantCount` there keeps the server in sync even without offer replacements
+  - The "Room is full" error is distinct from "Session busy" — the former stops the joiner retry loop, the latter triggers a retry
 ---
