@@ -61,7 +61,7 @@
         "useSyncExternalStore or equivalent hook triggers React re-renders on Yjs updates"
       ],
       "priority": 4,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-005",

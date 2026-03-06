@@ -9,6 +9,9 @@
 - `src/handleSignaling.ts` is the shared dispatcher used by both dev server and Vercel function
 - Dev server wires signaling via `routes: { "/api/signaling": handleSignaling }` in `src/index.ts`
 - `src/webrtc.ts` provides WebRTC primitives: createOffer, acceptOffer, acceptAnswer with base64-encoded SDP+ICE bundling
+- `src/store.tsx` provides StoreProvider context, useStore(), and useYjsSnapshot() for Yjs-backed session state
+- Yjs shared maps: `participants` (peerId→name), `votes` (peerId→card), `meta` (roomName, revealed)
+- Cast `Uint8Array` to `Uint8Array<ArrayBuffer>` when passing to `dc.send()` to satisfy strict TS types
 
 ---
 
@@ -51,4 +54,18 @@
   - ICE gathering uses a 3-second timeout fallback if `icegatheringstatechange` doesn't fire
   - SDP + ICE candidates are bundled into a single base64 string for signaling exchange
   - encode/decode helpers are exported for reuse by the store layer
+---
+
+## 2026-03-06 - US-004
+- What was implemented: Session store with Yjs CRDT sync, React context, and WebRTC peer management
+- Files changed:
+  - `src/store.tsx` - StoreProvider with Yjs Y.Doc, star topology peer connections, host polling, joiner reconnect
+  - `package.json` / `bun.lock` - Added `yjs` dependency
+- **Learnings for future iterations:**
+  - Used plain async/await + AbortController instead of RxJS for session lifecycle (simpler, no extra dependency)
+  - `Uint8Array` from Yjs needs cast to `Uint8Array<ArrayBuffer>` for `RTCDataChannel.send()` in strict TS
+  - Store exposes `doc` directly; components read from Yjs maps and use `useYjsSnapshot()` to re-render on changes
+  - Host sends full doc state (`Y.encodeStateAsUpdate`) to each new peer on data channel open
+  - Joiner retries with 3s delay on disconnect; host polls continuously for new answers
+  - Stale peers auto-cleaned after 30s of disconnection
 ---
