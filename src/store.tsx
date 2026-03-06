@@ -25,6 +25,12 @@ import * as Y from "yjs";
 import { createOffer, acceptOffer, acceptAnswer } from "./webrtc";
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const MAX_PARTICIPANTS = 12;
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -303,13 +309,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       monitorPcDisconnect(pc, peerId);
 
       // Post offer to server
+      const participantCount = doc.getMap("participants").size;
       const isFirst = !hostIdRef.current;
       if (isFirst) {
         hostIdRef.current = hostId;
         const res = await fetch("/api/signaling?action=create-session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, hostId, offer: offerString }),
+          body: JSON.stringify({ name, hostId, offer: offerString, participantCount }),
         });
         const data = await res.json();
         if (!data.ok) {
@@ -322,7 +329,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await fetch("/api/signaling?action=replace-offer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session: name, hostId, offer: offerString }),
+          body: JSON.stringify({ session: name, hostId, offer: offerString, participantCount }),
         });
       }
 
@@ -341,13 +348,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       firstPc: RTCPeerConnection,
       signal: AbortSignal,
     ) => {
-      let currentPeerId = firstPeerId;
-      let currentPc = firstPc;
+      let currentPeerId: string | null = firstPeerId;
+      let currentPc: RTCPeerConnection | null = firstPc;
 
       while (!signal.aborted) {
         try {
+          const participantCount = doc.getMap("participants").size;
+
+          // If no offer is pending and room has capacity, create one
+          if (!currentPc && participantCount < MAX_PARTICIPANTS) {
+            const next = await createAndPostOffer(name, hostId);
+            if (next) {
+              currentPeerId = next.peerId;
+              currentPc = next.pc;
+            }
+          }
+
           const r = await fetch(
-            `/api/signaling?action=poll-answer&session=${encodeURIComponent(name)}&hostId=${encodeURIComponent(hostId)}`,
+            `/api/signaling?action=poll-answer&session=${encodeURIComponent(name)}&hostId=${encodeURIComponent(hostId)}&participantCount=${participantCount}`,
             { signal },
           );
           const d = await r.json();
@@ -355,20 +373,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           if (d.ok && d.peerId && d.answer) {
             // Complete handshake — wrap in try/catch so a failed answer
             // doesn't prevent creating the next offer (race condition fix)
-            const peer = peersRef.current.get(currentPeerId);
-            if (peer && peer.pc === currentPc) {
-              try {
-                await acceptAnswer(currentPc, d.answer);
-              } catch (err) {
-                console.warn("Failed to accept answer:", err);
-                markDisconnected(currentPeerId);
+            if (currentPeerId && currentPc) {
+              const peer = peersRef.current.get(currentPeerId);
+              if (peer && peer.pc === currentPc) {
+                try {
+                  await acceptAnswer(currentPc, d.answer);
+                } catch (err) {
+                  console.warn("Failed to accept answer:", err);
+                  markDisconnected(currentPeerId);
+                }
               }
             }
-            // Always create next offer for the next joiner
-            const next = await createAndPostOffer(name, hostId);
-            if (next) {
-              currentPeerId = next.peerId;
-              currentPc = next.pc;
+            // Create next offer if room has capacity
+            const newCount = doc.getMap("participants").size;
+            if (newCount < MAX_PARTICIPANTS) {
+              const next = await createAndPostOffer(name, hostId);
+              if (next) {
+                currentPeerId = next.peerId;
+                currentPc = next.pc;
+              } else {
+                currentPeerId = null;
+                currentPc = null;
+              }
+            } else {
+              currentPeerId = null;
+              currentPc = null;
             }
           } else {
             // No answer yet — wait before polling again
@@ -381,7 +410,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [createAndPostOffer],
+    [doc, createAndPostOffer, markDisconnected],
   );
 
   // -- Connect to session ---------------------------------------------------
@@ -431,6 +460,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             const data = await res.json();
 
             if (!data.ok) {
+              if (data.error === "Room is full") {
+                setSessionState("error");
+                setErrorMessage("Room is full (max 12 participants)");
+                return;
+              }
               throw new Error(data.error || "Session busy");
             }
 

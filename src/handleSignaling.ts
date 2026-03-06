@@ -41,17 +41,18 @@ export async function handleSignaling(request: Request): Promise<Response> {
       }
 
       case "create-session": {
-        const { name, hostId, offer } = body as {
+        const { name, hostId, offer, participantCount } = body as {
           name?: string;
           hostId?: string;
           offer?: string;
+          participantCount?: number;
         };
         if (!name || !hostId || !offer)
           return Response.json(
             { ok: false, error: "name, hostId, and offer required" },
             { status: 400 },
           );
-        const result = createSession(name, hostId, offer);
+        const result = createSession(name, hostId, offer, participantCount);
         return Response.json(result, { status: result.ok ? 201 : 409 });
       }
 
@@ -71,17 +72,18 @@ export async function handleSignaling(request: Request): Promise<Response> {
       }
 
       case "replace-offer": {
-        const { session, hostId, offer } = body as {
+        const { session, hostId, offer, participantCount } = body as {
           session?: string;
           hostId?: string;
           offer?: string;
+          participantCount?: number;
         };
         if (!session || !hostId || !offer)
           return Response.json(
             { ok: false, error: "session, hostId, and offer required" },
             { status: 400 },
           );
-        const result = replaceOffer(session, hostId, offer);
+        const result = replaceOffer(session, hostId, offer, participantCount);
         return Response.json(result, { status: result.ok ? 200 : 404 });
       }
 
@@ -103,12 +105,14 @@ export async function handleSignaling(request: Request): Promise<Response> {
       case "poll-answer": {
         const session = url.searchParams.get("session");
         const hostId = url.searchParams.get("hostId");
+        const pcStr = url.searchParams.get("participantCount");
+        const participantCount = pcStr ? parseInt(pcStr, 10) : undefined;
         if (!session || !hostId)
           return Response.json(
             { ok: false, error: "session and hostId required" },
             { status: 400 },
           );
-        const result = pollAnswer(session, hostId);
+        const result = pollAnswer(session, hostId, participantCount);
         return Response.json(result, { status: result.ok ? 200 : 404 });
       }
     }
