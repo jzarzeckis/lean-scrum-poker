@@ -461,7 +461,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               (msg: Uint8Array) => Y.applyUpdate(doc, msg, "remote"),
               () => {
                 const hostEntry = peersRef.current.get("host");
-                if (hostEntry) hostEntry.status = "connected";
+                if (hostEntry) {
+                  hostEntry.status = "connected";
+                  // Send our full state to the host (includes participant key
+                  // that was set before the DC was open and thus never broadcast)
+                  if (hostEntry.dc && hostEntry.dc.readyState === "open") {
+                    hostEntry.dc.send(
+                      Y.encodeStateAsUpdate(doc) as Uint8Array<ArrayBuffer>,
+                    );
+                  }
+                }
                 setSessionState("connected");
                 updatePeersState();
               },
