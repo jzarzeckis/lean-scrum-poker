@@ -18,8 +18,7 @@
         "TypeScript compiles without errors"
       ],
       "priority": 1,
-      "passes": false,
-      "inProgress": true
+      "passes": true
     },
     {
       "id": "US-002",
