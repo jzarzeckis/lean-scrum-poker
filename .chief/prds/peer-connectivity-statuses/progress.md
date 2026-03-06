@@ -53,3 +53,15 @@
   - Promise `.then` microtasks (DC assignment) run before `onopen` macrotasks, so `hostEntry.dc` is guaranteed to be set when `onOpen` fires
   - The existing 10s cleanup interval + 30s threshold in store.tsx already handles ghost removal — it just needed `participantKey` to be set correctly
 ---
+
+## 2026-03-06 - US-007
+- What was implemented: Leave button in room UI + Yjs doc cleanup on leave
+- Files changed:
+  - `src/RoomPage.tsx` — Added Leave button (LogOut icon + "Leave" text) visible when hosting or connected. Button calls `leaveSession()` and navigates back to home page via `pushState` + `popstate` event.
+  - `src/store.tsx` — Enhanced `leaveSession()` to clear Yjs doc state (participants, votes, meta maps) and reset `participantStatusMap`.
+- **Learnings for future iterations:**
+  - Most of US-007's infrastructure was already in place from US-005/US-006: `beforeunload` handler, `monitorPcDisconnect`, joiner retry loop, host cleanup timer
+  - Navigation uses `window.history.pushState` + dispatching `PopStateEvent` since App.tsx Router listens for `popstate` events
+  - `leaveSession` must clear Yjs maps in addition to closing PCs — otherwise stale CRDT state persists in the doc
+  - `joinedRef.current` must be reset to `false` on leave so the name dialog shows again on rejoin
+---
