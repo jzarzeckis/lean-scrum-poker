@@ -9,6 +9,7 @@
 - The local user (localPeerId) is always "connected" — no need to look up in the map
 - lucide-react Circle icon with `fill-*` and `text-*` classes for colored dots
 - Pre-existing TS error in HomePage.tsx (suit type) — not related to connectivity work
+- Browser `offline`/`online` events provide instant network detection vs RTCPeerConnection's 5-10s delay
 
 ## 2026-03-06 - US-001
 - What was implemented: Colored connectivity dots next to each participant name in ParticipantsList
@@ -86,4 +87,15 @@
   - The existing 10s cleanup interval in store.tsx (lines 616-638) already handles Yjs removal at 30s — no changes needed there
   - For time-based UI animations, a 1s `setInterval` + computed opacity is simpler than CSS-only approaches since React needs to re-render to update the value
   - The `transition-opacity duration-[5000ms]` Tailwind class provides smooth CSS transition between the discrete opacity steps from the 1s timer
+---
+
+## 2026-03-06 - US-008
+- What was implemented: Network loss detection and automatic recovery via browser online/offline events
+- Files changed:
+  - `src/store.tsx` — Added `offline` event listener that immediately marks all peers as disconnected and transitions joiner UI to "Connecting..." state. Added `online` event listener that closes stale PCs to speed up retry loop. Updated joiner disconnect-wait promise to also resolve on `offline` event for instant retry initiation.
+- **Learnings for future iterations:**
+  - Browser `offline`/`online` events fire instantly vs RTCPeerConnection `connectionstatechange` which can take 5-10 seconds
+  - The joiner retry loop (while loop in `connectToSession`) already handles all reconnection logic — network recovery just needs to trigger the retry faster
+  - Closing stale PCs on `online` event helps the retry loop detect disconnection and start a new connection attempt
+  - Host doesn't need special recovery — it stays in "hosting" state, continues polling, and joiners reconnect via their retry loops
 ---
