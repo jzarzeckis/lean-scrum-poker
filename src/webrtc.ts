@@ -31,7 +31,7 @@ export async function createOffer(
 
   const dc = pc.createDataChannel("yjs", { ordered: true });
   dc.binaryType = "arraybuffer";
-  setupDataChannel(dc, onMessage, onOpen, onClose);
+  setupDataChannel(dc, onMessage, onOpen, onClose, pc);
 
   pc.onicecandidate = (e) => {
     if (e.candidate) candidates.push(e.candidate.toJSON());
@@ -140,25 +140,45 @@ function setupDataChannel(
   onMessage: OnBinaryMessage,
   onOpen: OnOpen,
   onClose: OnClose,
+  pc?: RTCPeerConnection,
 ) {
   let opened = false;
+  let timeout: ReturnType<typeof setTimeout> | null = null;
 
-  // Timeout: if data channel doesn't open within 10s, treat as failed
-  const timeout = setTimeout(() => {
-    if (!opened) {
-      console.warn("Data channel open timeout (10s)");
-      dc.close();
-      onClose();
-    }
-  }, 10_000);
+  const startTimeout = () => {
+    timeout = setTimeout(() => {
+      if (!opened) {
+        console.warn("Data channel open timeout (10s)");
+        dc.close();
+        onClose();
+      }
+    }, 10_000);
+  };
+
+  // If a PC is provided and it's still in "new" state (pre-created offer),
+  // defer the timeout until ICE negotiation actually starts.
+  if (pc && pc.connectionState === "new") {
+    const handler = () => {
+      const state = pc.connectionState;
+      if (state === "connecting" || state === "connected") {
+        startTimeout();
+        pc.removeEventListener("connectionstatechange", handler);
+      } else if (state === "failed" || state === "closed") {
+        pc.removeEventListener("connectionstatechange", handler);
+      }
+    };
+    pc.addEventListener("connectionstatechange", handler);
+  } else {
+    startTimeout();
+  }
 
   dc.onopen = () => {
     opened = true;
-    clearTimeout(timeout);
+    if (timeout) clearTimeout(timeout);
     onOpen();
   };
   dc.onclose = () => {
-    clearTimeout(timeout);
+    if (timeout) clearTimeout(timeout);
     onClose();
   };
   dc.onmessage = (e) => {

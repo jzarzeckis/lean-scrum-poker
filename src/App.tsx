@@ -1,12 +1,11 @@
 import "./index.css";
 import { useState, useEffect, useCallback } from "react";
-import { StoreProvider, useStore } from "./store";
+import { StoreProvider } from "./store";
 import { HomePage } from "./HomePage";
 import { RoomPage } from "./RoomPage";
 
 function Router() {
   const [path, setPath] = useState(window.location.pathname);
-  const { connectToSession } = useStore();
 
   useEffect(() => {
     const onPopState = () => setPath(window.location.pathname);
@@ -20,11 +19,11 @@ function Router() {
   }, []);
 
   const handleCreateRoom = useCallback(
-    (slug: string, displayName: string) => {
+    (slug: string, _displayName: string) => {
       navigateTo(`/${slug}`);
-      connectToSession(slug, displayName);
+      // connectToSession is called by RoomPage.useEffect to avoid double-calls
     },
-    [navigateTo, connectToSession],
+    [navigateTo],
   );
 
   const roomSlug = path !== "/" ? path.slice(1) : null;

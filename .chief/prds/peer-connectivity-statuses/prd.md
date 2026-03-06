@@ -159,45 +159,6 @@ The scrum poker app uses WebRTC with a star topology (host relays Yjs updates to
 - [ ] Console warning is logged with the error details
 - [ ] Typecheck passes
 
-### US-013: Playwright E2E test for basic connectivity flow
-**Priority:** 3
-**Description:** As a developer, I want an E2E test that verifies the basic host-joiner connectivity flow works end-to-end.
-
-**Acceptance Criteria:**
-- [ ] Test opens two browser contexts (host and joiner) against the running dev server at localhost:3000
-- [ ] Host navigates to a room URL and enters display name
-- [ ] Host sees "Hosting" status
-- [ ] Joiner navigates to the same room URL and enters display name
-- [ ] Joiner sees "Connected" status within 15 seconds
-- [ ] Both participants appear in the participants list for both users
-- [ ] Test uses real Vercel signaling functions as backend
-- [ ] Test passes reliably
-
-### US-014: Playwright E2E test for host refresh recovery
-**Priority:** 3
-**Description:** As a developer, I want an E2E test that verifies joiners recover when the host refreshes.
-
-**Acceptance Criteria:**
-- [ ] Test establishes a connected session between host and joiner
-- [ ] Host page is refreshed (page.reload())
-- [ ] Joiner detects disconnect and shows "Connecting..." state
-- [ ] Host re-enters room and becomes host again
-- [ ] Joiner reconnects to the new host within 20 seconds
-- [ ] Both participants see each other in the participants list again
-- [ ] Test passes reliably
-
-### US-015: Playwright E2E test for joiner refresh recovery
-**Priority:** 3
-**Description:** As a developer, I want an E2E test that verifies joiner refresh works cleanly without leaving ghost participants.
-
-**Acceptance Criteria:**
-- [ ] Test establishes a connected session between host and joiner
-- [ ] Joiner page is refreshed
-- [ ] Joiner reconnects within 15 seconds
-- [ ] Old ghost participant entry eventually disappears (within 35 seconds)
-- [ ] No permanent duplicate names in the participants list
-- [ ] Test passes reliably
-
 ## Functional Requirements
 
 - FR-1: Add a colored status dot (green/amber-pulse/gray) to the left of each participant name in ParticipantsList
@@ -247,11 +208,11 @@ The scrum poker app uses WebRTC with a star topology (host relays Yjs updates to
 
 ## Success Metrics
 
-- Host refresh recovery: joiner reconnects within 15 seconds (verified by Playwright test)
+- Host refresh recovery: joiner reconnects within 15 seconds (verified via Playwright during story implementation)
 - Joiner refresh recovery: joiner reconnects within 15 seconds, ghost cleaned up within 35 seconds
 - Tab close detection: remaining peers detect disconnect within 10 seconds
 - No permanently stuck "Connecting..." states for any participant under any scenario
-- All 3 Playwright E2E tests pass reliably (basic flow, host refresh, joiner refresh)
+- Each story is verified manually via Playwright as part of its definition of done
 - Zero TypeScript errors (`bunx tsc --noEmit` passes)
 
 ## Open Questions
